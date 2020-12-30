@@ -1,0 +1,11 @@
+.PositionLabel {
+    font-family: monospace;
+    font-size: 20pt;
+    border: 5px inset gray;
+    background-color: lightgreen;
+}
+.ZeroButton {
+    border: 5px ridge deeppink;
+    border-radius: 5px;
+    background-color: gray;
+}
