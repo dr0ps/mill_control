@@ -313,6 +313,26 @@ impl Tinyg {
         let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g28.2 x0 y0 z0\"}\r\n")?;
         Ok(result)
     }
+
+    pub fn zero_x(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 x0\"}\r\n")?;
+        Ok(result)
+    }
+
+    pub fn zero_y(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 y0\"}\r\n")?;
+        Ok(result)
+    }
+
+    pub fn zero_z(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 z0\"}\r\n")?;
+        Ok(result)
+    }
+
+    pub fn zero_a(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 a0\"}\r\n")?;
+        Ok(result)
+    }
 }
 
 impl Clone for Tinyg {

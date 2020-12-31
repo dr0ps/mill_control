@@ -92,14 +92,19 @@ pub fn main() {
 
     }));
 
+    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().home_all(); }));
+
+    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_x(); }));
+    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_y(); }));
+    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_z(); }));
+    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_a(); }));
+
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
     let pos_z: gtk::Label = builder.get_object("pos_z").unwrap();
     let pos_a: gtk::Label = builder.get_object("pos_a").unwrap();
 
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let button : gtk::Button = builder.get_object("refallhome_button").unwrap();
-    button.connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().home_all(); }));
 
     thread::spawn(move || {
         loop {
