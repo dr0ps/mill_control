@@ -9,3 +9,18 @@
     border-radius: 5px;
     background-color: gray;
 }
+.CycleStartButton {
+    border: 5px ridge green;
+    border-radius: 5px;
+    background-color: lightgreen;
+}
+.FeedHoldButton {
+    border: 5px ridge yellow;
+    border-radius: 5px;
+    background-color: lightyellow;
+}
+.StopButton {
+    border: 5px ridge darkred;
+    border-radius: 5px;
+    background-color: lightpink;
+}

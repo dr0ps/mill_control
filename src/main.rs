@@ -1,6 +1,7 @@
 use std::process::exit;
 use crate::tinyg::{Tinyg};
-use std::io::{stdout, Write, BufReader, Read};
+use std::io::{stdout, Write, BufReader, Read, BufRead};
+use std::io;
 
 extern crate gdk;
 extern crate gtk;
@@ -12,11 +13,18 @@ use std::fs::File;
 
 use std::thread;
 use std::time;
+use std::path::Path;
 
 mod tinyg;
 
 enum Message {
     UpdateLabel(tinyg::Status),
+}
+
+fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+    where P: AsRef<Path>, {
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file).lines())
 }
 
 pub fn main() {
@@ -41,6 +49,25 @@ pub fn main() {
             exit(0);
         }
     }
+
+    if let Ok(lines) = read_lines("./config") {
+        for line in lines {
+            if let Ok(cfg) = line {
+                match tinyg.send_config(cfg)
+                {
+                    Ok(result) => {
+                        println!("Status: {}", result);
+                        stdout().flush().unwrap();
+                    }
+                    Err(error) => {
+                        println!("Error: {}", error);
+                        exit(0);
+                    }
+                }
+            }
+        }
+    }
+
     match tinyg.get_status() {
         Ok(result) => {
             println!("Status: {}", result.sr.stat);
@@ -77,7 +104,7 @@ pub fn main() {
     let text_view: gtk::TextView = builder.get_object("gcode_view").unwrap();
 
     let file_choose_button : gtk::FileChooserButton = builder.get_object("file_choose_button").unwrap();
-    file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
+    file_choose_button.connect_file_set(clone!(@strong tinyg, @weak text_view => move |file_choose_button| {
         let filename = file_choose_button.get_filename().expect("Couldn't get filename");
         let file = File::open(&filename).expect("Couldn't open file");
 
@@ -90,6 +117,19 @@ pub fn main() {
             .expect("Couldn't get window")
             .set_text(&contents);
 
+        let mut gcode_lines : Vec<String> = Vec::new();
+        contents.lines().for_each(
+            |x| {
+                let mut s = String::new();
+                s.push_str("{\"gc\":\"");
+                s.push_str(x.splitn(2, ';').next().unwrap().trim());
+                s.push_str("\"}\r\n");
+                gcode_lines.push(s);
+            }
+        );
+        thread::spawn(clone!(@strong tinyg => move || {
+            tinyg.clone().send_gcode(Box::new(gcode_lines));
+        }));
     }));
 
     builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().home_all(); }));
@@ -98,6 +138,19 @@ pub fn main() {
     builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_y(); }));
     builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_z(); }));
     builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_a(); }));
+    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().cycle_start(); }));
+    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().feed_hold(); }));
+
+    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), None, None, None); }));
+    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), None, None, None); }));
+    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, Some(-1.0), None, None); }));
+    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, Some(1.0), None, None); }));
+    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), Some(-1.0), None, None); }));
+    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), Some(1.0), None, None); }));
+    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), Some(-1.0), None, None); }));
+    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), Some(1.0), None, None); }));
+    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, None, Some(-1.0), None); }));
+    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, None, Some(1.0), None); }));
 
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
