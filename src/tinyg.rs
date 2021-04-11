@@ -108,7 +108,7 @@ fn read_async() -> Result<String, String>
     return Ok(final_result.expect("Has to be here!"));
 }
 
-fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
+fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>, f: F)
 {
     let lines_to_send =  Arc::new(Mutex::new(4));
     let mut myp = port.try_clone().unwrap();
@@ -133,6 +133,8 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                         }
                     }
                 }
+                drop(lines_to_send);
+                thread::sleep(Duration::from_nanos(10));
             }
         });
     }
@@ -149,11 +151,21 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                     Ok(_msg) => {
                         *lines_to_send += 1;
                     }
-                    Err(_msg) => {
-                        break;
+                    Err(msg) => {
+                        if (msg.eq("Timeout."))
+                        {
+                            println!("Timeout.");
+                        }
+                        else
+                        {
+                            println!("Error: {}", msg);
+                            break;
+                        }
                     }
                 }
             }
+            drop(lines_to_send);
+            thread::sleep(Duration::from_nanos(10));
         }
     });
 
@@ -268,7 +280,6 @@ impl Tinyg {
                     {
                         Ok(size) => {
                             result = result.add(String::from_utf8_lossy(&buffer[0..size]).trim());
-                            println!("Current buffer length: {}", result.len());
                             let mut start : i32 = -1;
                             let mut chars = result.char_indices();
                             let mut char_at = chars.next();
@@ -285,7 +296,8 @@ impl Tinyg {
                                 let mut char_at = chars.next();
                                 while char_at.is_some() {
                                     if char_at.unwrap().1 == '\n' {
-                                        let line  = String::from(result.clone()[0..char_at.unwrap().0].trim());
+                                        let mut line  = String::from(result.clone()[0..char_at.unwrap().0].trim());
+                                        line.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                         LINES_READ.lock().expect("blah!").push(line);
                                         result = String::from(result.split_off(char_at.unwrap().0+1));
                                         chars = result.char_indices();
@@ -294,7 +306,8 @@ impl Tinyg {
                                 }
                             }
                             else {
-                                let line  = String::from(&result.clone()[0..start as usize]);
+                                let mut line  = String::from(&result.clone()[0..start as usize]);
+                                line.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                 if line.trim().len() > 0
                                 {
                                     LINES_READ.lock().expect("blah!").push(String::from(line.trim()));
@@ -324,11 +337,12 @@ impl Tinyg {
                                     }
                                     if open_brace_count == 0 {
                                         let sub = &result.clone()[0..end];
-                                        let sub = sub.trim();
+                                        let mut sub = String::from(sub.trim());
+                                        sub.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                         result = String::from(result.split_off(end));
 
                                         if sub.starts_with("{\"sr\":") {
-                                            let status: StatusReport = serde_json::from_str(sub).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
+                                            let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();
                                         }
                                         else {
@@ -476,9 +490,9 @@ impl Tinyg {
         send(self.port.as_mut().expect(""), "!\r\n");
     }
 
-    pub fn send_gcode(&mut self, code : Box<Vec<String>>)
+    pub fn send_gcode<F: Fn(i32) + 'static>(&mut self, code : Box<Vec<String>>, f : F)
     {
-        send_gcode(self.port.as_mut().expect(""), code);
+        send_gcode(self.port.as_mut().expect(""), code, f);
         return;
     }
 
