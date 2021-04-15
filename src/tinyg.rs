@@ -5,7 +5,7 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 use std::thread;
 use lazy_static::lazy_static;
-use std::sync::{Mutex, Arc};
+use std::sync::{Mutex};
 use std::rc::{Weak};
 use glib::clone::Downgrade;
 use std::sync::mpsc::channel;
@@ -25,6 +25,8 @@ lazy_static! {
             frmo: 0,
             stat: 0
         });
+
+    static ref QUEUE_FREE : Mutex<u8> = Mutex::new(32);
 }
 
 pub struct Tinyg {
@@ -54,6 +56,11 @@ pub struct Status {
 #[derive(Deserialize)]
 pub struct StatusReport {
     pub sr: Status
+}
+
+#[derive(Deserialize)]
+pub struct QueueReport {
+    pub qr: u8
 }
 
 #[derive(Deserialize)]
@@ -110,22 +117,30 @@ fn read_async() -> Result<String, String>
 
 fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>, f: F)
 {
-    let lines_to_send =  Arc::new(Mutex::new(4));
     let mut myp = port.try_clone().unwrap();
 
     let writer;
     {
-        let lines_to_send = Arc::clone(&lines_to_send);
         writer = thread::spawn(move || {
             let mut code_iter = code.iter();
+            let q = QUEUE_FREE.lock().expect("blah");
+            let mut last_queue_free = q.clone();
+            drop(q);
             loop {
-                let mut lines_to_send = lines_to_send.lock().unwrap();
-                if *lines_to_send > 0
+                let mut queue_free = QUEUE_FREE.lock().expect("blah");
+                if *queue_free != last_queue_free
                 {
+                    println!("Queue free {}", *queue_free);
+                    last_queue_free = *queue_free;
+                }
+                if *queue_free > 8
+                {
+                    *queue_free -= 2;
+                    drop(queue_free);
+
                     match code_iter.next()
                     {
                         Some(line) => {
-                            *lines_to_send -= 1;
                             send_async(&mut myp, line);
                         }
                         None => {
@@ -133,38 +148,32 @@ fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<V
                         }
                     }
                 }
-                drop(lines_to_send);
+                else {
+                    drop(queue_free);
+                }
                 thread::sleep(Duration::from_nanos(10));
             }
         });
     }
 
-    let lines_to_send = Arc::clone(&lines_to_send);
     let reader = thread::spawn(move ||  {
         loop {
-            let mut lines_to_send = lines_to_send.lock().unwrap();
-            if *lines_to_send < 4
+            match read_async()
             {
-                println!("Reading async.");
-                match read_async()
-                {
-                    Ok(_msg) => {
-                        *lines_to_send += 1;
+                Ok(_msg) => {
+                }
+                Err(msg) => {
+                    if msg.eq("Timeout.")
+                    {
+                        //println!("Timeout.");
                     }
-                    Err(msg) => {
-                        if (msg.eq("Timeout."))
-                        {
-                            println!("Timeout.");
-                        }
-                        else
-                        {
-                            println!("Error: {}", msg);
-                            break;
-                        }
+                    else
+                    {
+                        println!("Error: {}", msg);
+                        break;
                     }
                 }
             }
-            drop(lines_to_send);
             thread::sleep(Duration::from_nanos(10));
         }
     });
@@ -344,6 +353,10 @@ impl Tinyg {
                                         if sub.starts_with("{\"sr\":") {
                                             let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();
+                                        }
+                                        else if sub.starts_with("{\"qr\":") {
+                                            let status: QueueReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
+                                            *QUEUE_FREE.lock().expect("blah!") = status.qr.clone();
                                         }
                                         else {
                                             println!("Passing {}", sub);

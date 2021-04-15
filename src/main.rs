@@ -120,16 +120,19 @@ pub fn main() {
         let mut gcode_lines : Vec<String> = Vec::new();
         contents.lines().for_each(
             |x| {
-                let mut s = String::new();
-                s.push_str("{\"gc\":\"");
-                s.push_str(x.splitn(2, ';').next().unwrap().trim());
-                s.push_str("\"}\r\n");
-                gcode_lines.push(s);
+                if x.starts_with('(') {
+                    println!("Discarded: {}", x);
+                }
+                else {
+                    let mut s = String::new();
+                    s.push_str("{\"gc\":\"");
+                    s.push_str(x.splitn(2, ';').next().unwrap().trim());
+                    s.push_str("\"}\r\n");
+                    gcode_lines.push(s);
+                }
             }
         );
-        thread::spawn(clone!(@strong tinyg => move || {
-            tinyg.clone().send_gcode(Box::new(gcode_lines));
-        }));
+       tinyg.clone().send_gcode(Box::new(gcode_lines), |x| {});
     }));
 
     builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().home_all(); }));
