@@ -8,7 +8,6 @@ use lazy_static::lazy_static;
 use std::sync::{Mutex};
 use std::rc::{Weak};
 use glib::clone::Downgrade;
-use std::sync::mpsc::channel;
 
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
@@ -141,7 +140,7 @@ fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<V
                     match code_iter.next()
                     {
                         Some(line) => {
-                            send_async(&mut myp, line);
+                            send_async(&mut myp, line).expect("Failed to send async.");
                         }
                         None => {
                             break;
@@ -470,6 +469,12 @@ impl Tinyg {
             msg.push_str("z");
             msg.push_str(z.unwrap().to_string().as_str());
         }
+        if a.is_some()
+        {
+            msg.push_str(" ");
+            msg.push_str("a");
+            msg.push_str(a.unwrap().to_string().as_str());
+        }
         msg.push_str("\"}\r\n");
         let result = send(self.port.as_mut().expect(""), msg.as_str())?;
         Ok(result)
@@ -496,11 +501,11 @@ impl Tinyg {
     }
 
     pub fn cycle_start(&mut self) {
-        send(self.port.as_mut().expect(""), "~\r\n");
+        send_async(self.port.as_mut().expect(""), "~\r\n").expect("Failed to send cycle start.");
     }
 
     pub fn feed_hold(&mut self) {
-        send(self.port.as_mut().expect(""), "!\r\n");
+        send_async(self.port.as_mut().expect(""), "!\r\n").expect("Failed to send feed hold.");
     }
 
     pub fn send_gcode<F: Fn(i32) + 'static>(&mut self, code : Box<Vec<String>>, f : F)

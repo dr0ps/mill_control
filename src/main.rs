@@ -15,10 +15,18 @@ use std::thread;
 use std::time;
 use std::path::Path;
 
+use lazy_static::lazy_static;
+use std::sync::{Mutex};
+
 mod tinyg;
 
 enum Message {
     UpdateLabel(tinyg::Status),
+}
+
+lazy_static! {
+    static ref TINY_G : Mutex<Tinyg> = Mutex::new(Tinyg::new());
+    static ref TINY_G2 : Mutex<Tinyg> = Mutex::new(TINY_G.lock().unwrap().clone());
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -28,8 +36,7 @@ fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 }
 
 pub fn main() {
-    let mut tinyg = Tinyg::new();
-    match tinyg.initialize() {
+    match TINY_G.lock().expect("Unable to lock Tiny-G").initialize() {
         Ok(()) => {
             println!("Initialization complete.");
             stdout().flush().unwrap();
@@ -39,7 +46,7 @@ pub fn main() {
             exit(0);
         }
     }
-    match tinyg.get_system_status() {
+    match TINY_G.lock().expect("Unable to lock Tiny-G").get_system_status() {
         Ok(result) => {
             println!("Status: {}", result);
             stdout().flush().unwrap();
@@ -53,7 +60,7 @@ pub fn main() {
     if let Ok(lines) = read_lines("./config") {
         for line in lines {
             if let Ok(cfg) = line {
-                match tinyg.send_config(cfg)
+                match TINY_G.lock().expect("Unable to lock Tiny-G").send_config(cfg)
                 {
                     Ok(result) => {
                         println!("Status: {}", result);
@@ -68,7 +75,7 @@ pub fn main() {
         }
     }
 
-    match tinyg.get_status() {
+    match TINY_G.lock().expect("Unable to lock Tiny-G").get_status() {
         Ok(result) => {
             println!("Status: {}", result.sr.stat);
             stdout().flush().unwrap();
@@ -104,7 +111,7 @@ pub fn main() {
     let text_view: gtk::TextView = builder.get_object("gcode_view").unwrap();
 
     let file_choose_button : gtk::FileChooserButton = builder.get_object("file_choose_button").unwrap();
-    file_choose_button.connect_file_set(clone!(@strong tinyg, @weak text_view => move |file_choose_button| {
+    file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
         let filename = file_choose_button.get_filename().expect("Couldn't get filename");
         let file = File::open(&filename).expect("Couldn't open file");
 
@@ -132,28 +139,35 @@ pub fn main() {
                 }
             }
         );
-       tinyg.clone().send_gcode(Box::new(gcode_lines), |x| {});
+
+        thread::spawn(move || {
+            let ting_ref = TINY_G.lock().expect("Unable to lock Tiny-G");
+            let mut tinyg = ting_ref.clone();
+            drop(ting_ref);
+
+            tinyg.send_gcode(Box::new(gcode_lines), |x| {});
+        });
     }));
 
-    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().home_all(); }));
+    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").home_all(); });
 
-    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_x(); }));
-    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_y(); }));
-    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_z(); }));
-    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().zero_a(); }));
-    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().cycle_start(); }));
-    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().feed_hold(); }));
+    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_x(); });
+    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_y(); });
+    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_z(); });
+    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_a(); });
+    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(|_button| { TINY_G2.lock().expect("Unable to lock Tiny-G").cycle_start(); });
+    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(|_button| { TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold(); });
 
-    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), None, None, None); }));
-    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), None, None, None); }));
-    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, Some(-1.0), None, None); }));
-    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, Some(1.0), None, None); }));
-    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), Some(-1.0), None, None); }));
-    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(-1.0), Some(1.0), None, None); }));
-    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), Some(-1.0), None, None); }));
-    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(Some(1.0), Some(1.0), None, None); }));
-    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, None, Some(-1.0), None); }));
-    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(clone!(@strong tinyg => move |_x| { tinyg.clone().move_xyza(None, None, Some(1.0), None); }));
+    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), None, None, None); });
+    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), None, None, None); });
+    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-1.0), None, None); });
+    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(1.0), None, None); });
+    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(-1.0), None, None); });
+    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(1.0), None, None); });
+    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(-1.0), None, None); });
+    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(1.0), None, None); });
+    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-1.0), None); });
+    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(1.0), None); });
 
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
@@ -166,7 +180,7 @@ pub fn main() {
         loop {
             thread::sleep(time::Duration::from_millis(100));
             // Sending fails if the receiver is closed
-            let status= tinyg.get_latest_status().unwrap();
+            let status= TINY_G.lock().expect("Unable to lock Tiny-G").get_latest_status().unwrap();
             let _ = sender.send(Message::UpdateLabel(status));
         }
     });
