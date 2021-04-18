@@ -16,6 +16,8 @@ lazy_static = "1.4.0"
 glib = "^0"
 fragile = "1.0.0"
 gdk = "0.13.2"
+log = "0.4.14"
+simple_logger = "1.11.0"
 
 [dependencies.gtk]
 version = "0.9.2"

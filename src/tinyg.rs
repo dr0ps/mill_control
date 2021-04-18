@@ -1,6 +1,6 @@
 use serialport::{SerialPortType, SerialPortSettings, DataBits, FlowControl, Parity, StopBits, SerialPort};
 use std::time::{Duration, Instant};
-use std::io::{stdout, Write};
+use std::io::{Write};
 use std::ops::Add;
 use serde::{Deserialize, Serialize};
 use std::thread;
@@ -8,6 +8,7 @@ use lazy_static::lazy_static;
 use std::sync::{Mutex};
 use std::rc::{Weak};
 use glib::clone::Downgrade;
+use log::{debug,info,error};
 
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
@@ -91,12 +92,6 @@ struct StatusReportResult {
     f: [u16; 4]
 }
 
-fn rem_first(value: &str) -> &str {
-    let mut chars = value.chars();
-    chars.next();
-    chars.as_str()
-}
-
 fn send_async( port: &mut Box<dyn SerialPort>, message: &str) -> Result<usize, String>
 {
     let result = port.write(message.as_bytes());
@@ -163,7 +158,7 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 {
                     let next_line = code_iter.next();
 
-                    let mut buffer_reduction;
+                    let buffer_reduction;
 
                     match next_line
                     {
@@ -220,11 +215,11 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 Err(msg) => {
                     if msg.eq("Timeout.")
                     {
-                        //println!("Timeout.");
+                        debug!("Timeout.");
                     }
                     else
                     {
-                        println!("Error: {}", msg);
+                        error!("Timeout.");
                         break;
                     }
                 }
@@ -320,8 +315,7 @@ impl Tinyg {
         if tinyg_ports.is_empty() {
             return Err(String::from("No port found."))
         }
-        println!("Using port {}", tinyg_ports.get(0).unwrap());
-        stdout().flush().unwrap();
+        info!("Using port {}", tinyg_ports.get(0).unwrap());
         let tinyg_port = tinyg_ports.get(0).unwrap();
         let s = SerialPortSettings {
             baud_rate: 115200,
@@ -407,7 +401,6 @@ impl Tinyg {
                                         if sub.starts_with("{\"sr\":") {
                                             let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();
-                                            println!("Line: {}", STATUS.lock().expect("blah!").line);
                                         }
                                         else if sub.starts_with("{\"qr\":") {
                                             let status: QueueReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
@@ -432,18 +425,16 @@ impl Tinyg {
         for _x in 0..10 {
             match send(&mut port, "$\r\n") {
                 Ok(result) => {
-                    println!("result: {}",result);
+                    debug!("result: {}",result);
                     if result.trim().contains(&String::from("tinyg [mm] ok>"))
                     {
-                        println!("Init received {}", result);
-                        stdout().flush().unwrap();
+                        info!("Init received {}", result);
                         initialized = true;
                         break;
                     }
                     else
                     {
-                        println!("other {}", result.trim());
-                        stdout().flush().unwrap();
+                        debug!("other {}", result.trim());
                     }
 
                 }
@@ -457,8 +448,7 @@ impl Tinyg {
         {
             match send(&mut port, "{ej:1}\r\n") {
                 Ok(result) => {
-                    println!("Received {}",result);
-                    stdout().flush().unwrap();
+                    debug!("Received {}",result);
                 }
                 Err(err) => {
                     return Err(err);

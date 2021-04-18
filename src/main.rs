@@ -1,6 +1,6 @@
 use std::process::exit;
 use crate::tinyg::{Tinyg};
-use std::io::{stdout, Write, BufReader, Read, BufRead};
+use std::io::{BufReader, Read, BufRead};
 use std::io;
 
 extern crate gdk;
@@ -17,6 +17,11 @@ use std::path::Path;
 
 use lazy_static::lazy_static;
 use std::sync::{Mutex};
+use gtk::TextTagBuilder;
+
+use log::{error, info};
+use simple_logger::SimpleLogger;
+use log::LevelFilter::Info;
 
 mod tinyg;
 
@@ -36,23 +41,23 @@ fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 }
 
 pub fn main() {
+    SimpleLogger::new().with_level(Info).init().unwrap();
+
     match TINY_G.lock().expect("Unable to lock Tiny-G").initialize() {
         Ok(()) => {
-            println!("Initialization complete.");
-            stdout().flush().unwrap();
+            info!("Initialization complete.");
         }
         Err(error) => {
-            println!("Error: {}", error);
+            error!("Error: {}", error);
             exit(0);
         }
     }
 
     match TINY_G.lock().expect("Unable to lock Tiny-G").get_system_status() {
-        Ok(result) => {
-            stdout().flush().unwrap();
+        Ok(_result) => {
         }
         Err(error) => {
-            println!("Error: {}", error);
+            error!("Error: {}", error);
             exit(0);
         }
     }
@@ -65,7 +70,7 @@ pub fn main() {
                     Ok(_result) => {
                     }
                     Err(error) => {
-                        println!("Error: {}", error);
+                        error!("Error: {}", error);
                         exit(0);
                     }
                 }
@@ -77,7 +82,7 @@ pub fn main() {
         Ok(_result) => {
         }
         Err(error) => {
-            println!("Error: {}", error);
+            error!("Error: {}", error);
             exit(0);
         }
     }
@@ -86,13 +91,13 @@ pub fn main() {
         Ok(_result) => {
         }
         Err(error) => {
-            println!("Error: {}", error);
+            error!("Error: {}", error);
             exit(0);
         }
     }
 
     if gtk::init().is_err() {
-        println!("Failed to initialize GTK.");
+        error!("Failed to initialize GTK.");
         return;
     }
 
@@ -150,25 +155,178 @@ pub fn main() {
         });
     }));
 
-    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").home_all(); });
+    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").home_all() {
+            Ok(_) => {
 
-    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_x(); });
-    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_y(); });
-    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_z(); });
-    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").zero_a(); });
-    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(|_button| { TINY_G2.lock().expect("Unable to lock Tiny-G").cycle_start(); });
-    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(|_button| { TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold(); });
+            },
+            Err(msg) => {
+                error!("Ref All Home: {}", msg);
+            }
+        }
+    });
 
-    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), None, None, None); });
-    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), None, None, None); });
-    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-1.0), None, None); });
-    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(1.0), None, None); });
-    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(-1.0), None, None); });
-    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(1.0), None, None); });
-    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(-1.0), None, None); });
-    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(1.0), None, None); });
-    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-1.0), None); });
-    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(|_button| { TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(1.0), None); });
+    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").zero_x() {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Zero X: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").zero_y() {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Zero Y: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").zero_z() {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Zero Z: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").zero_a() {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Zero A: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(|_button| {
+        TINY_G2.lock().expect("Unable to lock Tiny-G").cycle_start();
+    });
+
+    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(|_button| {
+        TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold();
+    });
+
+    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), None, None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Minus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), None, None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Plus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Y Minus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Y Plus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(-1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Minus Y Minus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Minus Y Plus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(-1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Plus Y Minus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(1.0), None, None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("X Plus Y Plus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-1.0), None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Z Minus: {}", msg);
+            }
+        }
+    });
+
+    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(|_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(1.0), None) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Z Plus: {}", msg);
+            }
+        }
+    });
 
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
@@ -192,6 +350,12 @@ pub fn main() {
     let pos_y_clone = pos_y.clone();
     let pos_z_clone = pos_z.clone();
     let pos_a_clone = pos_a.clone();
+    let text_view_clone = text_view.clone();
+    let text_view_buffer = text_view_clone.get_buffer().unwrap();
+
+    let tag = TextTagBuilder::new().background("yellow").name("yellow_bg").build();
+    text_view_buffer.get_tag_table().unwrap().add(&tag);
+
     receiver.attach(None, move |msg| {
         match msg {
             Message::UpdateLabel(status) => {
@@ -199,6 +363,20 @@ pub fn main() {
                 pos_y_clone.set_text(format!("{:.4}", status.posy).as_str());
                 pos_z_clone.set_text(format!("{:.4}", status.posz).as_str());
                 pos_a_clone.set_text(format!("{:.4}", status.posa).as_str());
+
+                let iter = text_view_buffer.get_iter_at_line(status.line as i32);
+                match text_view_buffer.create_mark(None, &iter, false) {
+                    Some(mark) => {
+                        text_view_clone.scroll_mark_onscreen(&mark);
+                        text_view_buffer.delete_mark(&mark);
+                    }
+                    None => {
+                    }
+                }
+
+                text_view_buffer.remove_tag(&tag, &text_view_buffer.get_start_iter(), &text_view_buffer.get_end_iter());
+                text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.get_iter_at_line(status.line as i32 + 1));
+
             },
         }
         // Returning false here would close the receiver
