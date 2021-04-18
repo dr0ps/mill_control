@@ -46,9 +46,9 @@ pub fn main() {
             exit(0);
         }
     }
+
     match TINY_G.lock().expect("Unable to lock Tiny-G").get_system_status() {
         Ok(result) => {
-            println!("Status: {}", result);
             stdout().flush().unwrap();
         }
         Err(error) => {
@@ -62,9 +62,7 @@ pub fn main() {
             if let Ok(cfg) = line {
                 match TINY_G.lock().expect("Unable to lock Tiny-G").send_config(cfg)
                 {
-                    Ok(result) => {
-                        println!("Status: {}", result);
-                        stdout().flush().unwrap();
+                    Ok(_result) => {
                     }
                     Err(error) => {
                         println!("Error: {}", error);
@@ -75,10 +73,17 @@ pub fn main() {
         }
     }
 
+    match TINY_G.lock().expect("Unable to lock Tiny-G").set_status_fields() {
+        Ok(_result) => {
+        }
+        Err(error) => {
+            println!("Error: {}", error);
+            exit(0);
+        }
+    }
+
     match TINY_G.lock().expect("Unable to lock Tiny-G").get_status() {
-        Ok(result) => {
-            println!("Status: {}", result.sr.stat);
-            stdout().flush().unwrap();
+        Ok(_result) => {
         }
         Err(error) => {
             println!("Error: {}", error);
@@ -125,18 +130,14 @@ pub fn main() {
             .set_text(&contents);
 
         let mut gcode_lines : Vec<String> = Vec::new();
+        let mut line_number = 0;
         contents.lines().for_each(
             |x| {
-                if x.starts_with('(') {
-                    println!("Discarded: {}", x);
-                }
-                else {
-                    let mut s = String::new();
-                    s.push_str("{\"gc\":\"");
-                    s.push_str(x.splitn(2, ';').next().unwrap().trim());
-                    s.push_str("\"}\r\n");
-                    gcode_lines.push(s);
-                }
+                let mut s = String::new();
+                s.push_str(format!("N{:05} ", line_number).as_str());
+                s.push_str(x.splitn(2, ';').next().unwrap().trim());
+                gcode_lines.push(s);
+                line_number += 1;
             }
         );
 
@@ -145,7 +146,7 @@ pub fn main() {
             let mut tinyg = ting_ref.clone();
             drop(ting_ref);
 
-            tinyg.send_gcode(Box::new(gcode_lines), |x| {});
+            tinyg.send_gcode(Box::new(gcode_lines));
         });
     }));
 

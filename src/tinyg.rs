@@ -12,6 +12,7 @@ use glib::clone::Downgrade;
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
     static ref STATUS : Mutex<Status> = Mutex::new(Status {
+            line: 0,
             posx: 0.0,
             posy: 0.0,
             posz: 0.0,
@@ -39,6 +40,7 @@ struct SetVerbosity {
 
 #[derive(Deserialize, Clone, Copy)]
 pub struct Status {
+    #[serde(default)] pub line: u16,
     #[serde(default)] pub posx: f32,
     #[serde(default)] pub posy: f32,
     #[serde(default)] pub posz: f32,
@@ -50,6 +52,27 @@ pub struct Status {
     #[serde(default)] pub dist: u8,
     #[serde(default)] pub frmo: u8,
     #[serde(default)] pub stat: u8
+}
+
+#[derive(Serialize)]
+pub struct StatusFields {
+    line: bool,
+    posx: bool,
+    posy: bool,
+    posz: bool,
+    posa: bool,
+    feed: bool,
+    vel: bool,
+    unit: bool,
+    coor: bool,
+    dist: bool,
+    frmo: bool,
+    stat: bool
+}
+
+#[derive(Serialize)]
+pub struct SetStatusFields {
+    sr: StatusFields
 }
 
 #[derive(Deserialize)]
@@ -68,9 +91,14 @@ struct StatusReportResult {
     f: [u16; 4]
 }
 
+fn rem_first(value: &str) -> &str {
+    let mut chars = value.chars();
+    chars.next();
+    chars.as_str()
+}
+
 fn send_async( port: &mut Box<dyn SerialPort>, message: &str) -> Result<usize, String>
 {
-    println!("Sending async {}", message);
     let result = port.write(message.as_bytes());
     if result.is_err()
     {
@@ -114,7 +142,7 @@ fn read_async() -> Result<String, String>
     return Ok(final_result.expect("Has to be here!"));
 }
 
-fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>, f: F)
+fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
 {
     let mut myp = port.try_clone().unwrap();
 
@@ -129,18 +157,46 @@ fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<V
                 let mut queue_free = QUEUE_FREE.lock().expect("blah");
                 if *queue_free != last_queue_free
                 {
-                    println!("Queue free {}", *queue_free);
                     last_queue_free = *queue_free;
                 }
                 if *queue_free > 8
                 {
-                    *queue_free -= 2;
-                    drop(queue_free);
+                    let next_line = code_iter.next();
 
-                    match code_iter.next()
+                    let mut buffer_reduction;
+
+                    match next_line
                     {
                         Some(line) => {
-                            send_async(&mut myp, line).expect("Failed to send async.");
+                            let parts:Vec<&str> = line.split(' ').collect();
+                            let mut pos = 0;
+                            if parts[0].starts_with('N') {
+                                pos = 1;
+                            }
+                            if parts[pos].starts_with("(") {
+                                buffer_reduction = 0;
+                            }
+                            else {
+                                buffer_reduction = 2;
+                            }
+                        }
+                        None => {
+                            buffer_reduction = 0;
+                        }
+                    }
+
+                    *queue_free -= buffer_reduction;
+                    drop(queue_free);
+
+                    match next_line
+                    {
+                        Some(line) => {
+                            let mut s = String::new();
+                            s.push_str("{\"gc\":\"");
+                            s.push_str(line);
+                            s.push_str("\"}\r\n");
+
+                            send_async(&mut myp, &s).expect("Failed to send async.");
                         }
                         None => {
                             break;
@@ -183,7 +239,6 @@ fn send_gcode<F: Fn(i32) + 'static>(port: &mut Box<dyn SerialPort>, code : Box<V
 
 fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String>
 {
-    println!("Sending {}", message);
     let json_only = message.starts_with('{');
 
     match port.write(message.as_bytes())
@@ -352,13 +407,13 @@ impl Tinyg {
                                         if sub.starts_with("{\"sr\":") {
                                             let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();
+                                            println!("Line: {}", STATUS.lock().expect("blah!").line);
                                         }
                                         else if sub.starts_with("{\"qr\":") {
                                             let status: QueueReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *QUEUE_FREE.lock().expect("blah!") = status.qr.clone();
                                         }
                                         else {
-                                            println!("Passing {}", sub);
                                             LINES_READ.lock().expect("blah!").push(String::from(sub));
                                         }
                                     } else {
@@ -419,18 +474,23 @@ impl Tinyg {
         }
     }
 
-
-
     pub fn get_system_status(&mut self) -> Result<String, String> {
         let result = send(self.port.as_mut().expect(""), "{\"sys\":null}\r\n")?;
         Ok(result)
+    }
+
+    pub fn set_status_fields(&mut self) -> Result<StatusReport, String> {
+        let fields = StatusFields{line: true, coor: true, dist: true, feed: true, frmo: true, posa: true, posx: true, posy: true, posz: true, stat: true, unit: true, vel: true};
+        let set_fields = SetStatusFields{sr: fields};
+        let result = send(self.port.as_mut().expect(""), serde_json::to_string(&set_fields).unwrap().add("\r\n").as_str())?;
+        let status_report: StatusReportResult = serde_json::from_str(result.as_str()).unwrap();
+        Ok(status_report.r)
     }
 
     pub fn get_status(&mut self) -> Result<StatusReport, String> {
         let verbosity = SetVerbosity{sv:2};
         let _result = send(self.port.as_mut().expect(""), serde_json::to_string(&verbosity).unwrap().add("\r\n").as_str())?;
         let result = send(self.port.as_mut().expect(""), "{\"sr\":null}\r\n")?;
-        println!("Parsing >{}<", result);
         let status_report: StatusReportResult = serde_json::from_str(result.as_str()).unwrap();
         Ok(status_report.r)
     }
@@ -508,9 +568,9 @@ impl Tinyg {
         send_async(self.port.as_mut().expect(""), "!\r\n").expect("Failed to send feed hold.");
     }
 
-    pub fn send_gcode<F: Fn(i32) + 'static>(&mut self, code : Box<Vec<String>>, f : F)
+    pub fn send_gcode(&mut self, code : Box<Vec<String>>)
     {
-        send_gcode(self.port.as_mut().expect(""), code, f);
+        send_gcode(self.port.as_mut().expect(""), code);
         return;
     }
 
