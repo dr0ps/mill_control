@@ -40,6 +40,28 @@ fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
     Ok(io::BufReader::new(file).lines())
 }
 
+fn get_selected_distance(builder:gtk::Builder) -> f32 {
+    let full_button: gtk::RadioButton = builder.get_object("move_full_radio").unwrap();
+    let tenth_button: gtk::RadioButton = builder.get_object("move_tenth_radio").unwrap();
+    let hundreds_button: gtk::RadioButton = builder.get_object("move_hundreds_radio").unwrap();
+    let thousands_button: gtk::RadioButton = builder.get_object("move_thousands_radio").unwrap();
+    if full_button.get_active() {
+        1 as f32
+    }
+    else if tenth_button.get_active() {
+        0.1 as f32
+    }
+    else if hundreds_button.get_active() {
+        0.01 as f32
+    }
+    else if thousands_button.get_active() {
+        0.001 as f32
+    }
+    else {
+        0 as f32
+    }
+}
+
 pub fn main() {
     SimpleLogger::new().with_level(Info).init().unwrap();
 
@@ -218,8 +240,9 @@ pub fn main() {
         TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold();
     });
 
-    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), None, None, None) {
+    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), None, None, None) {
             Ok(_) => {
 
             },
@@ -227,10 +250,11 @@ pub fn main() {
                 error!("X Minus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), None, None, None) {
+    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), None, None, None) {
             Ok(_) => {
 
             },
@@ -238,10 +262,11 @@ pub fn main() {
                 error!("X Plus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-1.0), None, None) {
+    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-distance), None, None) {
             Ok(_) => {
 
             },
@@ -249,10 +274,11 @@ pub fn main() {
                 error!("Y Minus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(1.0), None, None) {
+    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(distance), None, None) {
             Ok(_) => {
 
             },
@@ -260,10 +286,11 @@ pub fn main() {
                 error!("Y Plus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(-1.0), None, None) {
+    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), Some(-distance), None, None) {
             Ok(_) => {
 
             },
@@ -271,10 +298,11 @@ pub fn main() {
                 error!("X Minus Y Minus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-1.0), Some(1.0), None, None) {
+    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), Some(distance), None, None) {
             Ok(_) => {
 
             },
@@ -282,10 +310,11 @@ pub fn main() {
                 error!("X Minus Y Plus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(-1.0), None, None) {
+    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), Some(-distance), None, None) {
             Ok(_) => {
 
             },
@@ -293,10 +322,11 @@ pub fn main() {
                 error!("X Plus Y Minus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(1.0), Some(1.0), None, None) {
+    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), Some(distance), None, None) {
             Ok(_) => {
 
             },
@@ -304,10 +334,11 @@ pub fn main() {
                 error!("X Plus Y Plus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-1.0), None) {
+    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-distance), None) {
             Ok(_) => {
 
             },
@@ -315,10 +346,11 @@ pub fn main() {
                 error!("Z Minus: {}", msg);
             }
         }
-    });
+    }));
 
-    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(|_button| {
-        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(1.0), None) {
+    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let distance = get_selected_distance(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(distance), None) {
             Ok(_) => {
 
             },
@@ -326,7 +358,7 @@ pub fn main() {
                 error!("Z Plus: {}", msg);
             }
         }
-    });
+    }));
 
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
