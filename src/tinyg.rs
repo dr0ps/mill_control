@@ -41,7 +41,7 @@ struct SetVerbosity {
 
 #[derive(Deserialize, Clone, Copy)]
 pub struct Status {
-    #[serde(default)] pub line: u16,
+    #[serde(default)] pub line: u32,
     #[serde(default)] pub posx: f32,
     #[serde(default)] pub posy: f32,
     #[serde(default)] pub posz: f32,
