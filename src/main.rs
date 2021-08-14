@@ -1,5 +1,6 @@
 use std::process::exit;
 use crate::tinyg::{Tinyg};
+use crate::whb04b::*;
 use std::io::{BufReader, Read, BufRead};
 use std::io;
 
@@ -24,6 +25,7 @@ use simple_logger::SimpleLogger;
 use log::LevelFilter::Info;
 
 mod tinyg;
+mod whb04b;
 
 enum Message {
     UpdateLabel(tinyg::Status),
@@ -117,6 +119,8 @@ pub fn main() {
             exit(0);
         }
     }
+
+    Whb04b::initialize(|| TINY_G.lock().expect("Unable to lock Tiny-G").clone());
 
     if gtk::init().is_err() {
         error!("Failed to initialize GTK.");
