@@ -301,8 +301,18 @@ impl Tinyg {
         let mut tinyg_ports = Vec::new();
         for p in ports {
             match p.port_type {
-                SerialPortType::UsbPort(_info) => {
-                    tinyg_ports.push(p.port_name);
+                SerialPortType::UsbPort(info) => {
+                    match info.product.as_deref() {
+                        Some("FT230X_Basic_UART") => {
+                            tinyg_ports.push(p.port_name);
+                        }
+                        Some(_str) => {
+
+                        }
+                        None => {
+
+                        }
+                    }
                 }
                 SerialPortType::BluetoothPort => {
                 }
