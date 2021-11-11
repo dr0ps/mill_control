@@ -17,10 +17,15 @@
 .FeedHoldButton {
     border: 5px ridge yellow;
     border-radius: 5px;
-    background-color: lightyellow;
+    background-color: #FFFF80;
 }
 .StopButton {
     border: 5px ridge darkred;
     border-radius: 5px;
-    background-color: lightpink;
+    background-color: #FF8080;
+}
+.SpindleStopButton {
+    border: 5px ridge darkred;
+    border-radius: 5px;
+    background-color: red;
 }

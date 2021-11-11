@@ -10,14 +10,15 @@ extern crate gio;
 
 use gtk::prelude::*;
 use glib::{clone};
-use std::fs::File;
 
+use std::fs::File;
 use std::thread;
 use std::time;
 use std::path::Path;
+use std::str::FromStr;
+use std::sync::{Mutex};
 
 use lazy_static::lazy_static;
-use std::sync::{Mutex};
 use gtk::TextTagBuilder;
 
 use log::{error, info};
@@ -60,8 +61,23 @@ fn get_selected_distance(builder:gtk::Builder) -> f32 {
         0.001 as f32
     }
     else {
-        0 as f32
+        let distance_input: gtk::Entry = builder.get_object("distance_entry").unwrap();
+        let text = distance_input.get_text();
+        let str = text.as_str();
+        match <f32 as FromStr>::from_str(str) {
+            Ok(value) => {
+                value
+            }
+            Err(_err) => 0.0
+        }
     }
+}
+
+fn get_selected_rpm(builder:gtk::Builder) -> i32 {
+    let rpm_input: gtk::Entry = builder.get_object("rpm_entry").unwrap();
+    let text = rpm_input.get_text();
+    let str = text.as_str();
+    <i32 as FromStr>::from_str(str).unwrap()
 }
 
 pub fn main() {
@@ -360,6 +376,41 @@ pub fn main() {
             },
             Err(msg) => {
                 error!("Z Plus: {}", msg);
+            }
+        }
+    }));
+
+    builder.get_object::<gtk::Button>("spindle_cw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let speed = get_selected_rpm(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_cw(speed) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Spindle CW: {}", msg);
+            }
+        }
+    }));
+
+    builder.get_object::<gtk::Button>("spindle_ccw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        let speed = get_selected_rpm(builder);
+        match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_ccw(speed) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Spindle CW: {}", msg);
+            }
+        }
+    }));
+
+    builder.get_object::<gtk::Button>("spindle_stop_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_stop() {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("Spindle Stop: {}", msg);
             }
         }
     }));

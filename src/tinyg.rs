@@ -574,6 +574,20 @@ impl Tinyg {
         return;
     }
 
+    pub fn spindle_cw(&mut self, rpm : i32) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), format!("{{\"gc\":\"m3 s{}\"}}\r\n", rpm).as_str())?;
+        Ok(result)
+    }
+
+    pub fn spindle_ccw(&mut self, rpm : i32) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), format!("{{\"gc\":\"m4 s{}\"}}\r\n", rpm).as_str())?;
+        Ok(result)
+    }
+
+    pub fn spindle_stop(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"m5\"}\r\n")?;
+        Ok(result)
+    }
 }
 
 impl Clone for Tinyg {
