@@ -7,8 +7,9 @@ use std::thread;
 use lazy_static::lazy_static;
 use std::sync::{Mutex};
 use std::rc::{Weak};
+use gdk::keys::constants::l;
 use glib::clone::Downgrade;
-use log::{debug,info,error};
+use log::{debug, info, error, log};
 
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
@@ -114,7 +115,7 @@ fn send_async( port: &mut Box<dyn SerialPort>, message: &str) -> Result<usize, S
 fn read_async() -> Result<String, String>
 {
     let start = Instant::now();
-    let mut final_result= None;
+    let mut final_result = None;
     loop {
         let mut lines = LINES_READ.lock().expect("blah!");
         if !lines.is_empty() {
@@ -123,18 +124,32 @@ fn read_async() -> Result<String, String>
             if line.starts_with("{\"r\":") {
                 final_result = Some(String::from(line));
             }
+            if line.starts_with("{\"er\":") {
+                return Err(line.to_string());
+            }
             if final_result.is_some() {
                 break;
             }
+            else {
+                info!("Unable to parse {}", line);
+                drop(lines);
+                thread::sleep(Duration::from_nanos(10));
+            }
         } else {
+            drop(lines);
+            thread::sleep(Duration::from_nanos(10));
             if start.elapsed().as_millis() > 1000
             {
-                return Err(String::from("Timeout."));
+                return Err(String::from("Timeout in read_async."));
             }
         }
     }
 
-    return Ok(final_result.expect("Has to be here!"));
+    let result = final_result.expect("Has to be here!");
+
+    debug!("Read by read_async() {}", result);
+
+    return Ok(result);
 }
 
 fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
@@ -200,6 +215,7 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 }
                 else {
                     drop(queue_free);
+                    thread::sleep(Duration::from_nanos(10));
                 }
                 thread::sleep(Duration::from_nanos(10));
             }
@@ -219,7 +235,7 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                     }
                     else
                     {
-                        error!("Timeout.");
+                        error!("Error in send_gcode: {}", msg);
                         break;
                     }
                 }
@@ -274,15 +290,26 @@ fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String
             if final_result.is_some() {
                 break;
             }
+            else {
+                info!("Unable to parse {}", line);
+                drop(lines);
+                thread::sleep(Duration::from_nanos(10));
+            }
         } else {
-            if start.elapsed().as_millis() > 1000
+            drop(lines);
+            thread::sleep(Duration::from_nanos(10));
+            if start.elapsed().as_millis() > 10000
             {
-                return Err(String::from("Timeout."));
+                return Err(String::from("Timeout in send."));
             }
         }
     }
 
-    return Ok(final_result.expect("Has to be here!"));
+    let result = final_result.expect("Has to be here!");
+
+    debug!("Read by send(): {}", result);
+
+    return Ok(result);
 }
 
 impl Tinyg {
@@ -427,6 +454,7 @@ impl Tinyg {
                         }
                         Err(_err) => {}
                     }
+                    thread::sleep(Duration::from_nanos(10));
                 }
             });
         }
