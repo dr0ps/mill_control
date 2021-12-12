@@ -380,8 +380,7 @@ A</property>
                         <property name="orientation">vertical</property>
                         <child>
                           <object class="GtkButton" id="cycle_start_button">
-                            <property name="label" translatable="yes">Cycle Start
-&lt;Alt-R&gt;</property>
+                            <property name="label" translatable="yes">Cycle Start</property>
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
                             <property name="receives-default">True</property>
@@ -398,8 +397,7 @@ A</property>
                         </child>
                         <child>
                           <object class="GtkButton" id="feed_hold_button">
-                            <property name="label" translatable="yes">Feed Hold
-&lt;Spc&gt;</property>
+                            <property name="label" translatable="yes">Feed Hold</property>
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
                             <property name="receives-default">True</property>
@@ -417,8 +415,7 @@ A</property>
                         </child>
                         <child>
                           <object class="GtkButton" id="stop_button">
-                            <property name="label" translatable="yes">Stop
-&lt;Alt-S&gt;</property>
+                            <property name="label" translatable="yes">Stop</property>
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
                             <property name="receives-default">True</property>
@@ -983,8 +980,19 @@ CCW</property>
           <packing>
             <property name="expand">False</property>
             <property name="fill">False</property>
-            <property name="pack-type">end</property>
             <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel" id="status">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="pack-type">end</property>
+            <property name="position">4</property>
           </packing>
         </child>
       </object>
