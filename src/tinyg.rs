@@ -5,11 +5,11 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 use std::thread;
 use lazy_static::lazy_static;
-use std::sync::{Mutex};
+use std::sync::Mutex;
+use std::sync::mpsc::{self, TryRecvError};
 use std::rc::{Weak};
-use gdk::keys::constants::l;
 use glib::clone::Downgrade;
-use log::{debug, info, error, log};
+use log::{debug, info, error, warn};
 
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
@@ -53,7 +53,12 @@ pub struct Status {
     #[serde(default)] pub coor: u8,
     #[serde(default)] pub dist: u8,
     #[serde(default)] pub frmo: u8,
-    #[serde(default)] pub stat: u8
+    #[serde(default)] pub stat: u8,
+}
+
+pub struct QueueStatus {
+    pub tinyg_planning_buffer_free : u8,
+    pub line_buffer_length : usize
 }
 
 #[derive(Serialize)]
@@ -83,6 +88,12 @@ pub struct StatusReport {
 }
 
 #[derive(Deserialize)]
+pub struct QueueReportResult {
+    pub r: QueueReport,
+    #[allow(dead_code)] f: [u16; 4]
+}
+
+#[derive(Deserialize)]
 pub struct QueueReport {
     pub qr: u8
 }
@@ -90,7 +101,19 @@ pub struct QueueReport {
 #[derive(Deserialize)]
 struct StatusReportResult {
     r: StatusReport,
-    f: [u16; 4]
+    #[allow(dead_code)] f: [u16; 4]
+}
+
+#[derive(Deserialize)]
+struct ErrorReportResult {
+    er: ErrorReport
+}
+
+#[derive(Deserialize)]
+struct ErrorReport {
+    #[allow(dead_code)] fb: f32,
+    #[allow(dead_code)] st: u16,
+    msg : String
 }
 
 fn send_async( port: &mut Box<dyn SerialPort>, message: &str) -> Result<usize, String>
@@ -124,15 +147,15 @@ fn read_async() -> Result<String, String>
             if line.starts_with("{\"r\":") {
                 final_result = Some(String::from(line));
             }
-            if line.starts_with("{\"er\":") {
+            else if line.starts_with("{\"er\":") {
                 return Err(line.to_string());
             }
             if final_result.is_some() {
                 break;
             }
             else {
-                info!("Unable to parse {}", line);
                 drop(lines);
+                info!("Unable to parse {}", line);
                 thread::sleep(Duration::from_nanos(10));
             }
         } else {
@@ -187,7 +210,7 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                                 buffer_reduction = 0;
                             }
                             else {
-                                buffer_reduction = 2;
+                                buffer_reduction = 4;
                             }
                         }
                         None => {
@@ -206,7 +229,18 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                             s.push_str(line);
                             s.push_str("\"}\r\n");
 
-                            send_async(&mut myp, &s).expect("Failed to send async.");
+                           match send_async(&mut myp, &s) {
+                               Ok(size) => {
+                                   if size != s.len() {
+                                       error!("Expected to send {} but sent only {} bytes.", s.len(), size);
+                                       break;
+                                   }
+                               }
+                               Err(error) => {
+                                   error!("Error in send_gcode: {}",error);
+                                   break;
+                               }
+                           }
                         }
                         None => {
                             break;
@@ -215,12 +249,27 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 }
                 else {
                     drop(queue_free);
+                    match send_async(&mut myp, "{\"qr\":n}\r\n") {
+                        Ok(size) => {
+                            if size != 10 {
+                                error!("Expected to send {} but sent only {} bytes.", 10, size);
+                                break;
+                            }
+                        }
+                        Err(error) => {
+                            error!("Error in send_gcode: {}",error);
+                            break;
+                        }
+                    }
                     thread::sleep(Duration::from_nanos(10));
                 }
                 thread::sleep(Duration::from_nanos(10));
             }
+            info!("Finished send_gcode sender.");
         });
     }
+
+    let (tx, rx) = mpsc::channel();
 
     let reader = thread::spawn(move ||  {
         loop {
@@ -229,7 +278,7 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 Ok(_msg) => {
                 }
                 Err(msg) => {
-                    if msg.eq("Timeout.")
+                    if msg.eq("Timeout in read_async.")
                     {
                         debug!("Timeout.");
                     }
@@ -241,10 +290,18 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
                 }
             }
             thread::sleep(Duration::from_nanos(10));
+            match rx.try_recv() {
+                Ok(_) | Err(TryRecvError::Disconnected) => {
+                    info!("Finished send_gcode receiver.");
+                    break;
+                }
+                Err(TryRecvError::Empty) => {}
+            }
         }
     });
 
     writer.join().unwrap();
+    let _ = tx.send(());
     reader.join().unwrap();
 }
 
@@ -291,8 +348,8 @@ fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String
                 break;
             }
             else {
-                info!("Unable to parse {}", line);
                 drop(lines);
+                warn!("Unable to parse {}", line);
                 thread::sleep(Duration::from_nanos(10));
             }
         } else {
@@ -320,7 +377,14 @@ impl Tinyg {
     pub fn get_latest_status(&mut self) -> Result<Status, String>
     {
         let status = *STATUS.lock().expect("blah!");
-        return Ok(status);
+        return Ok(status.clone());
+    }
+
+    pub fn get_queue_status(&mut self) -> QueueStatus
+    {
+        let queue_free = *QUEUE_FREE.lock().expect("blah!");
+        let line_length = LINES_READ.lock().expect("blah!").len();
+        return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length};
     }
 
     pub fn initialize(&mut self) -> Result<(), String> {
@@ -392,7 +456,11 @@ impl Tinyg {
                                     if char_at.unwrap().1 == '\n' {
                                         let mut line  = String::from(result.clone()[0..char_at.unwrap().0].trim());
                                         line.retain(|c| c != 0x13 as char && c != 0x11 as char);
-                                        LINES_READ.lock().expect("blah!").push(line);
+
+                                        let mut lines = LINES_READ.lock().expect("blah!");
+                                        lines.push(line);
+                                        drop(lines);
+
                                         result = String::from(result.split_off(char_at.unwrap().0+1));
                                         chars = result.char_indices();
                                     }
@@ -404,7 +472,9 @@ impl Tinyg {
                                 line.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                 if line.trim().len() > 0
                                 {
-                                    LINES_READ.lock().expect("blah!").push(String::from(line.trim()));
+                                    let mut lines = LINES_READ.lock().expect("blah!");
+                                    lines.push(String::from(line.trim()));
+                                    drop(lines);
                                 }
                                 result = String::from(result.split_off(start as usize).trim());
 
@@ -434,7 +504,6 @@ impl Tinyg {
                                         let mut sub = String::from(sub.trim());
                                         sub.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                         result = String::from(result.split_off(end));
-
                                         if sub.starts_with("{\"sr\":") {
                                             let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();
@@ -442,6 +511,16 @@ impl Tinyg {
                                         else if sub.starts_with("{\"qr\":") {
                                             let status: QueueReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *QUEUE_FREE.lock().expect("blah!") = status.qr.clone();
+                                        }
+                                        else if sub.starts_with("{\"r\":{\"qr\":")
+                                        {
+                                            let status_result: QueueReportResult = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
+                                            *QUEUE_FREE.lock().expect("blah!") = status_result.r.qr.clone();
+                                        }
+                                        else if sub.starts_with("{\"er\":")
+                                        {
+                                            let error_result : ErrorReportResult = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
+                                            error!("Received error: {}", error_result.er.msg);
                                         }
                                         else {
                                             LINES_READ.lock().expect("blah!").push(String::from(sub));
@@ -452,7 +531,9 @@ impl Tinyg {
                                 }
                             }
                         }
-                        Err(_err) => {}
+                        Err(error) => {
+                            debug!("Error in read thread: {}", error);
+                        }
                     }
                     thread::sleep(Duration::from_nanos(10));
                 }

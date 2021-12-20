@@ -30,6 +30,7 @@ mod whb04b;
 
 enum Message {
     UpdateLabel(tinyg::Status),
+    UpdateQueueFree(tinyg::QueueStatus)
 }
 
 lazy_static! {
@@ -161,6 +162,8 @@ pub fn main() {
 
     let main_window: gtk::Window = builder.get_object("main_window").unwrap();
     let text_view: gtk::TextView = builder.get_object("gcode_view").unwrap();
+
+    let status_label : gtk::Label = builder.get_object("status").unwrap();
 
     let file_choose_button : gtk::FileChooserButton = builder.get_object("file_choose_button").unwrap();
     file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
@@ -426,8 +429,12 @@ pub fn main() {
         loop {
             thread::sleep(time::Duration::from_millis(100));
             // Sending fails if the receiver is closed
-            let status= TINY_G.lock().expect("Unable to lock Tiny-G").get_latest_status().unwrap();
+            let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
+            let status= tiny_g.get_latest_status().unwrap();
+            let queue_status = tiny_g.get_queue_status();
+            drop(tiny_g);
             let _ = sender.send(Message::UpdateLabel(status));
+            let _ = sender.send( Message::UpdateQueueFree(queue_status));
         }
     });
 
@@ -438,6 +445,7 @@ pub fn main() {
     let pos_z_clone = pos_z.clone();
     let pos_a_clone = pos_a.clone();
     let text_view_clone = text_view.clone();
+    let status_label_clone = status_label.clone();
     let text_view_buffer = text_view_clone.get_buffer().unwrap();
 
     let tag = TextTagBuilder::new().background("yellow").name("yellow_bg").build();
@@ -451,7 +459,7 @@ pub fn main() {
                 pos_z_clone.set_text(format!("{:.4}", status.posz).as_str());
                 pos_a_clone.set_text(format!("{:.4}", status.posa).as_str());
 
-                let iter = text_view_buffer.get_iter_at_line(status.line as i32);
+                let iter = text_view_buffer.get_iter_at_line(status.line as i32 + 5);
                 match text_view_buffer.create_mark(None, &iter, false) {
                     Some(mark) => {
                         text_view_clone.scroll_mark_onscreen(&mark);
@@ -462,9 +470,13 @@ pub fn main() {
                 }
 
                 text_view_buffer.remove_tag(&tag, &text_view_buffer.get_start_iter(), &text_view_buffer.get_end_iter());
+                let iter = text_view_buffer.get_iter_at_line(status.line as i32);
                 text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.get_iter_at_line(status.line as i32 + 1));
 
             },
+            Message::UpdateQueueFree(queue_status) => {
+                status_label_clone.set_text(format!("Free planning queue entries: {}, Lines read and ready to be consumed: {}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length).as_str());
+            }
         }
         // Returning false here would close the receiver
         // and have senders fail
