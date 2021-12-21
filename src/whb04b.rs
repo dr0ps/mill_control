@@ -1,7 +1,10 @@
+use std::sync::mpsc;
+use std::sync::mpsc::{Sender, TryRecvError};
 use crate::tinyg::{Tinyg};
 use hidapi::HidApi;
 use std::thread;
-use log::{debug, error};
+use std::thread::JoinHandle;
+use log::{debug, error, info};
 
 pub struct Whb04b {
 }
@@ -25,8 +28,9 @@ fn get_bytes(input : f32) -> [u8; 4] {
 
 impl Whb04b {
 
-    pub fn initialize<F>(f: F) where F: Fn() -> Tinyg + std::marker::Sync + 'static + std::marker::Send {
-        thread::spawn(move || {
+    pub fn initialize<F>(f: F) -> (JoinHandle<()>, Sender<()>) where F: Fn() -> Tinyg + std::marker::Sync + 'static + std::marker::Send  {
+        let (tx, rx) = mpsc::channel();
+        (thread::spawn(move || {
             match HidApi::new() {
                 Ok(api) => {
                     for device in api.device_list() {
@@ -82,6 +86,13 @@ impl Whb04b {
                                                 Err(error) => error!("Error in HidDevice.send_feature_report: {}", error)
                                             }
                                         }
+                                        match rx.try_recv() {
+                                            Ok(_) | Err(TryRecvError::Disconnected) => {
+                                                info!("Finished Whb04b thread.");
+                                                break;
+                                            }
+                                            Err(TryRecvError::Empty) => {}
+                                        }
                                     }
                                 }
                                 Err(error) => {
@@ -95,6 +106,6 @@ impl Whb04b {
                     error!("Error: {}", e);
                 },
             }
-        });
+        }), tx)
     }
 }

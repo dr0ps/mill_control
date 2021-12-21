@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::thread;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-use std::sync::mpsc::{self, TryRecvError};
+use std::sync::mpsc::{self, Sender, TryRecvError};
 use std::rc::{Weak};
+use std::thread::JoinHandle;
 use glib::clone::Downgrade;
 use log::{debug, info, error, warn};
 
@@ -143,6 +144,7 @@ fn read_async() -> Result<String, String>
         let mut lines = LINES_READ.lock().expect("blah!");
         if !lines.is_empty() {
             let prefix : Vec<String> = lines.drain(0..1).collect();
+            drop(lines);
             let line = prefix.first().expect("Vector was not empty.");
             if line.starts_with("{\"r\":") {
                 final_result = Some(String::from(line));
@@ -154,7 +156,6 @@ fn read_async() -> Result<String, String>
                 break;
             }
             else {
-                drop(lines);
                 info!("Unable to parse {}", line);
                 thread::sleep(Duration::from_nanos(10));
             }
@@ -183,9 +184,11 @@ fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
     {
         writer = thread::spawn(move || {
             let mut code_iter = code.iter();
-            let q = QUEUE_FREE.lock().expect("blah");
-            let mut last_queue_free = q.clone();
-            drop(q);
+            let mut last_queue_free;
+            {
+                let q = QUEUE_FREE.lock().expect("blah");
+                last_queue_free = q.clone();
+            }
             loop {
                 let mut queue_free = QUEUE_FREE.lock().expect("blah");
                 if *queue_free != last_queue_free
@@ -376,18 +379,27 @@ impl Tinyg {
 
     pub fn get_latest_status(&mut self) -> Result<Status, String>
     {
-        let status = *STATUS.lock().expect("blah!");
+        let status;
+        {
+            status = *STATUS.lock().expect("blah!");
+        }
         return Ok(status.clone());
     }
 
     pub fn get_queue_status(&mut self) -> QueueStatus
     {
-        let queue_free = *QUEUE_FREE.lock().expect("blah!");
-        let line_length = LINES_READ.lock().expect("blah!").len();
+        let queue_free;
+        {
+            queue_free =  *QUEUE_FREE.lock().expect("blah!");
+        }
+        let line_length;
+        {
+            line_length = LINES_READ.lock().expect("blah!").len();
+        }
         return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length};
     }
 
-    pub fn initialize(&mut self) -> Result<(), String> {
+    pub fn initialize(&mut self) -> Result<(JoinHandle<()>, Sender<()>), String> {
         let ports = serialport::available_ports().expect("No ports found!");
         let mut tinyg_ports = Vec::new();
         for p in ports {
@@ -428,9 +440,11 @@ impl Tinyg {
         };
         let mut port = serialport::open_with_settings(tinyg_port, &s).expect("Failed to open serial port");
 
+        let (tx, rx) = mpsc::channel();
+        let comm_thread;
         {
             let mut port_clone = port.try_clone().expect("Has to be able to clone");
-            thread::spawn(move || {
+            comm_thread = thread::spawn(move || {
                 let mut result = String::new();
                 loop {
                     let mut buffer = [0u8; 4096];
@@ -536,6 +550,13 @@ impl Tinyg {
                         }
                     }
                     thread::sleep(Duration::from_nanos(10));
+                    match rx.try_recv() {
+                        Ok(_) | Err(TryRecvError::Disconnected) => {
+                            info!("Finished comm thread.");
+                            break;
+                        }
+                        Err(TryRecvError::Empty) => {}
+                    }
                 }
             });
         }
@@ -575,7 +596,7 @@ impl Tinyg {
             }
 
             self.port = Some(port);
-            Ok(())
+            Ok((comm_thread, tx))
         }
         else
         {

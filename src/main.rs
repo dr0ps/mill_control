@@ -84,9 +84,11 @@ fn get_selected_rpm(builder:gtk::Builder) -> i32 {
 pub fn main() {
     SimpleLogger::new().with_level(Info).init().unwrap();
 
+    let comm_thread;
     match TINY_G.lock().expect("Unable to lock Tiny-G").initialize() {
-        Ok(()) => {
+        Ok(ct) => {
             info!("Initialization complete.");
+            comm_thread = ct;
         }
         Err(error) => {
             error!("Error: {}", error);
@@ -137,7 +139,7 @@ pub fn main() {
         }
     }
 
-    Whb04b::initialize(|| TINY_G.lock().expect("Unable to lock Tiny-G").clone());
+    let whb_thread = Whb04b::initialize(|| TINY_G.lock().expect("Unable to lock Tiny-G").clone());
 
     if gtk::init().is_err() {
         error!("Failed to initialize GTK.");
@@ -427,7 +429,7 @@ pub fn main() {
 
     thread::spawn(move || {
         loop {
-            thread::sleep(time::Duration::from_millis(100));
+            thread::sleep(time::Duration::from_millis(10));
             // Sending fails if the receiver is closed
             let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
             let status= tiny_g.get_latest_status().unwrap();
@@ -493,4 +495,8 @@ pub fn main() {
     main_window.show_all();
 
     gtk::main();
+    let _ = whb_thread.1.send(());
+    whb_thread.0.join().unwrap();
+    let _ = comm_thread.1.send(());
+    comm_thread.0.join().unwrap();
 }
