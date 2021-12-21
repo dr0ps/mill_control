@@ -2,7 +2,7 @@
 name = "mill_control"
 version = "0.1.0"
 authors = ["dr0ps <dr0ps@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -25,5 +25,4 @@ version = "0.9.2"
 features = ["v3_16"]
 
 [dependencies.gio]
-version = ""
-features = ["v2_44"]
+version = "0.14.8"

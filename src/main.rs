@@ -409,7 +409,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("spindle_stop_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.get_object::<gtk::Button>("spindle_stop_button").unwrap().connect_clicked(|_| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_stop() {
             Ok(_) => {
 
@@ -418,7 +418,7 @@ pub fn main() {
                 error!("Spindle Stop: {}", msg);
             }
         }
-    }));
+    });
 
     let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
     let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
