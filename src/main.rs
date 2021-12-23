@@ -46,25 +46,25 @@ fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 }
 
 fn get_selected_distance(builder:gtk::Builder) -> f32 {
-    let full_button: gtk::RadioButton = builder.get_object("move_full_radio").unwrap();
-    let tenth_button: gtk::RadioButton = builder.get_object("move_tenth_radio").unwrap();
-    let hundreds_button: gtk::RadioButton = builder.get_object("move_hundreds_radio").unwrap();
-    let thousands_button: gtk::RadioButton = builder.get_object("move_thousands_radio").unwrap();
-    if full_button.get_active() {
+    let full_button: gtk::RadioButton = builder.object("move_full_radio").unwrap();
+    let tenth_button: gtk::RadioButton = builder.object("move_tenth_radio").unwrap();
+    let hundreds_button: gtk::RadioButton = builder.object("move_hundreds_radio").unwrap();
+    let thousands_button: gtk::RadioButton = builder.object("move_thousands_radio").unwrap();
+    if full_button.is_active() {
         1 as f32
     }
-    else if tenth_button.get_active() {
+    else if tenth_button.is_active() {
         0.1 as f32
     }
-    else if hundreds_button.get_active() {
+    else if hundreds_button.is_active() {
         0.01 as f32
     }
-    else if thousands_button.get_active() {
+    else if thousands_button.is_active() {
         0.001 as f32
     }
     else {
-        let distance_input: gtk::Entry = builder.get_object("distance_entry").unwrap();
-        let text = distance_input.get_text();
+        let distance_input: gtk::Entry = builder.object("distance_entry").unwrap();
+        let text = distance_input.text();
         let str = text.as_str();
         match <f32 as FromStr>::from_str(str) {
             Ok(value) => {
@@ -76,8 +76,8 @@ fn get_selected_distance(builder:gtk::Builder) -> f32 {
 }
 
 fn get_selected_rpm(builder:gtk::Builder) -> i32 {
-    let rpm_input: gtk::Entry = builder.get_object("rpm_entry").unwrap();
-    let text = rpm_input.get_text();
+    let rpm_input: gtk::Entry = builder.object("rpm_entry").unwrap();
+    let text = rpm_input.text();
     let str = text.as_str();
     <i32 as FromStr>::from_str(str).unwrap()
 }
@@ -155,7 +155,7 @@ pub fn main() {
     // We give the CssProvided to the default screen so the CSS rules we added
     // can be applied to our window.
     gtk::StyleContext::add_provider_for_screen(
-        &gdk::Screen::get_default().expect("Error initializing gtk css provider."),
+        &gdk::Screen::default().expect("Error initializing gtk css provider."),
         &provider,
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
@@ -163,14 +163,14 @@ pub fn main() {
     let glade_src = include_str!("../mainwindow.glade");
     let builder = gtk::Builder::from_string(glade_src);
 
-    let main_window: gtk::Window = builder.get_object("main_window").unwrap();
-    let text_view: gtk::TextView = builder.get_object("gcode_view").unwrap();
+    let main_window: gtk::Window = builder.object("main_window").unwrap();
+    let text_view: gtk::TextView = builder.object("gcode_view").unwrap();
 
-    let status_label : gtk::Label = builder.get_object("status").unwrap();
+    let status_label : gtk::Label = builder.object("status").unwrap();
 
-    let file_choose_button : gtk::FileChooserButton = builder.get_object("file_choose_button").unwrap();
+    let file_choose_button : gtk::FileChooserButton = builder.object("file_choose_button").unwrap();
     file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
-        let filename = file_choose_button.get_filename().expect("Couldn't get filename");
+        let filename = file_choose_button.filename().expect("Couldn't get filename");
         let file = File::open(&filename).expect("Couldn't open file");
 
         let mut reader = BufReader::new(file);
@@ -178,7 +178,7 @@ pub fn main() {
         let _ = reader.read_to_string(&mut contents);
 
         text_view
-            .get_buffer()
+            .buffer()
             .expect("Couldn't get window")
             .set_text(&contents);
 
@@ -203,7 +203,7 @@ pub fn main() {
         });
     }));
 
-    builder.get_object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").home_all() {
             Ok(_) => {
 
@@ -214,7 +214,7 @@ pub fn main() {
         }
     });
 
-    builder.get_object::<gtk::Button>("zerox_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("zerox_button").unwrap().connect_clicked(|_button| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").zero_x() {
             Ok(_) => {
 
@@ -225,7 +225,7 @@ pub fn main() {
         }
     });
 
-    builder.get_object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("zeroy_button").unwrap().connect_clicked(|_button| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").zero_y() {
             Ok(_) => {
 
@@ -236,7 +236,7 @@ pub fn main() {
         }
     });
 
-    builder.get_object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("zeroz_button").unwrap().connect_clicked(|_button| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").zero_z() {
             Ok(_) => {
 
@@ -247,7 +247,7 @@ pub fn main() {
         }
     });
 
-    builder.get_object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("zeroa_button").unwrap().connect_clicked(|_button| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").zero_a() {
             Ok(_) => {
 
@@ -258,15 +258,15 @@ pub fn main() {
         }
     });
 
-    builder.get_object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("cycle_start_button").unwrap().connect_clicked(|_button| {
         TINY_G2.lock().expect("Unable to lock Tiny-G").cycle_start();
     });
 
-    builder.get_object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(|_button| {
+    builder.object::<gtk::Button>("feed_hold_button").unwrap().connect_clicked(|_button| {
         TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold();
     });
 
-    builder.get_object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), None, None, None) {
             Ok(_) => {
@@ -278,7 +278,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), None, None, None) {
             Ok(_) => {
@@ -290,7 +290,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(-distance), None, None) {
             Ok(_) => {
@@ -302,7 +302,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, Some(distance), None, None) {
             Ok(_) => {
@@ -314,7 +314,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_minus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), Some(-distance), None, None) {
             Ok(_) => {
@@ -326,7 +326,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_minus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), Some(distance), None, None) {
             Ok(_) => {
@@ -338,7 +338,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_plus_y_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), Some(-distance), None, None) {
             Ok(_) => {
@@ -350,7 +350,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("x_plus_y_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(distance), Some(distance), None, None) {
             Ok(_) => {
@@ -362,7 +362,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("z_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(-distance), None) {
             Ok(_) => {
@@ -374,7 +374,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("z_plus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(None, None, Some(distance), None) {
             Ok(_) => {
@@ -386,7 +386,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("spindle_cw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("spindle_cw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let speed = get_selected_rpm(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_cw(speed) {
             Ok(_) => {
@@ -398,7 +398,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("spindle_ccw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
+    builder.object::<gtk::Button>("spindle_ccw_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let speed = get_selected_rpm(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_ccw(speed) {
             Ok(_) => {
@@ -410,7 +410,7 @@ pub fn main() {
         }
     }));
 
-    builder.get_object::<gtk::Button>("spindle_stop_button").unwrap().connect_clicked(|_| {
+    builder.object::<gtk::Button>("spindle_stop_button").unwrap().connect_clicked(|_| {
         match TINY_G.lock().expect("Unable to lock Tiny-G").spindle_stop() {
             Ok(_) => {
 
@@ -421,10 +421,10 @@ pub fn main() {
         }
     });
 
-    let pos_x: gtk::Label = builder.get_object("pos_x").unwrap();
-    let pos_y: gtk::Label = builder.get_object("pos_y").unwrap();
-    let pos_z: gtk::Label = builder.get_object("pos_z").unwrap();
-    let pos_a: gtk::Label = builder.get_object("pos_a").unwrap();
+    let pos_x: gtk::Label = builder.object("pos_x").unwrap();
+    let pos_y: gtk::Label = builder.object("pos_y").unwrap();
+    let pos_z: gtk::Label = builder.object("pos_z").unwrap();
+    let pos_a: gtk::Label = builder.object("pos_a").unwrap();
 
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_HIGH);
 
@@ -465,10 +465,10 @@ pub fn main() {
     let pos_a_clone = pos_a.clone();
     let text_view_clone = text_view.clone();
     let status_label_clone = status_label.clone();
-    let text_view_buffer = text_view_clone.get_buffer().unwrap();
+    let text_view_buffer = text_view_clone.buffer().unwrap();
 
     let tag = TextTagBuilder::new().background("yellow").name("yellow_bg").build();
-    text_view_buffer.get_tag_table().unwrap().add(&tag);
+    text_view_buffer.tag_table().unwrap().add(&tag);
 
     receiver.attach(None, move |msg| {
         match msg {
@@ -479,7 +479,7 @@ pub fn main() {
                 pos_a_clone.set_text(format!("{:.4}", status.posa).as_str());
             }
             Message::UpdateLine(status) => {
-                let iter = text_view_buffer.get_iter_at_line(status.line as i32 + 5);
+                let iter = text_view_buffer.iter_at_line(status.line as i32 + 5);
                 match text_view_buffer.create_mark(None, &iter, false) {
                     Some(mark) => {
                         text_view_clone.scroll_mark_onscreen(&mark);
@@ -489,9 +489,9 @@ pub fn main() {
                     }
                 }
 
-                text_view_buffer.remove_tag(&tag, &text_view_buffer.get_start_iter(), &text_view_buffer.get_end_iter());
-                let iter = text_view_buffer.get_iter_at_line(status.line as i32);
-                text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.get_iter_at_line(status.line as i32 + 1));
+                text_view_buffer.remove_tag(&tag, &text_view_buffer.start_iter(), &text_view_buffer.end_iter());
+                let iter = text_view_buffer.iter_at_line(status.line as i32);
+                text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.iter_at_line(status.line as i32 + 1));
             },
             Message::UpdateQueueFree(queue_status) => {
                 status_label_clone.set_text(format!("Free planning queue entries: {}, Lines read and ready to be consumed: {}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length).as_str());
