@@ -41,7 +41,7 @@ struct SetVerbosity {
     sv: u16,
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Clone, Copy, PartialEq)]
 pub struct Status {
     #[serde(default)] pub line: u32,
     #[serde(default)] pub posx: f32,
@@ -57,6 +57,7 @@ pub struct Status {
     #[serde(default)] pub stat: u8,
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub struct QueueStatus {
     pub tinyg_planning_buffer_free : u8,
     pub line_buffer_length : usize

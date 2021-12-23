@@ -29,7 +29,8 @@ mod tinyg;
 mod whb04b;
 
 enum Message {
-    UpdateLabel(tinyg::Status),
+    UpdatePosition(tinyg::Status),
+    UpdateLine(tinyg::Status),
     UpdateQueueFree(tinyg::QueueStatus)
 }
 
@@ -425,23 +426,39 @@ pub fn main() {
     let pos_z: gtk::Label = builder.get_object("pos_z").unwrap();
     let pos_a: gtk::Label = builder.get_object("pos_a").unwrap();
 
-    let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_HIGH);
 
     thread::spawn(move || {
+        let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
+        let mut old_status = tiny_g.get_latest_status().unwrap();
+        let mut old_queue_status = tiny_g.get_queue_status();
+        drop(tiny_g);
+        let _ = sender.send(Message::UpdatePosition(old_status));
+        let _ = sender.send( Message::UpdateQueueFree(old_queue_status));
         loop {
             thread::sleep(time::Duration::from_millis(10));
-            // Sending fails if the receiver is closed
             let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
             let status= tiny_g.get_latest_status().unwrap();
             let queue_status = tiny_g.get_queue_status();
             drop(tiny_g);
-            let _ = sender.send(Message::UpdateLabel(status));
-            let _ = sender.send( Message::UpdateQueueFree(queue_status));
+            if old_status != status {
+                if old_status.line != status.line
+                {
+                    let _ = sender.send(Message::UpdateLine(status));
+                }
+                if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
+                {
+                    let _ = sender.send(Message::UpdatePosition(status));
+                }
+                old_status = status;
+            }
+            if old_queue_status != queue_status {
+                old_queue_status = queue_status;
+                let _ = sender.send( Message::UpdateQueueFree(queue_status));
+            }
         }
     });
 
-// Attach the receiver to the default main context (None)
-// and on every message update the label accordingly.
     let pos_x_clone = pos_x.clone();
     let pos_y_clone = pos_y.clone();
     let pos_z_clone = pos_z.clone();
@@ -455,12 +472,13 @@ pub fn main() {
 
     receiver.attach(None, move |msg| {
         match msg {
-            Message::UpdateLabel(status) => {
+            Message::UpdatePosition(status) => {
                 pos_x_clone.set_text(format!("{:.4}", status.posx).as_str());
                 pos_y_clone.set_text(format!("{:.4}", status.posy).as_str());
                 pos_z_clone.set_text(format!("{:.4}", status.posz).as_str());
                 pos_a_clone.set_text(format!("{:.4}", status.posa).as_str());
-
+            }
+            Message::UpdateLine(status) => {
                 let iter = text_view_buffer.get_iter_at_line(status.line as i32 + 5);
                 match text_view_buffer.create_mark(None, &iter, false) {
                     Some(mark) => {
@@ -474,7 +492,6 @@ pub fn main() {
                 text_view_buffer.remove_tag(&tag, &text_view_buffer.get_start_iter(), &text_view_buffer.get_end_iter());
                 let iter = text_view_buffer.get_iter_at_line(status.line as i32);
                 text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.get_iter_at_line(status.line as i32 + 1));
-
             },
             Message::UpdateQueueFree(queue_status) => {
                 status_label_clone.set_text(format!("Free planning queue entries: {}, Lines read and ready to be consumed: {}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length).as_str());
