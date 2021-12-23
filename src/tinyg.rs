@@ -146,9 +146,10 @@ fn read_async() -> Result<String, String>
         if !lines.is_empty() {
             let prefix : Vec<String> = lines.drain(0..1).collect();
             drop(lines);
-            let line = prefix.first().expect("Vector was not empty.");
+            let line = prefix.first().expect("Vector was not empty.").clone();
+            drop(prefix);
             if line.starts_with("{\"r\":") {
-                final_result = Some(String::from(line));
+                final_result = Some(String::from(line.clone()));
             }
             else if line.starts_with("{\"er\":") {
                 return Err(line.to_string());
@@ -157,7 +158,7 @@ fn read_async() -> Result<String, String>
                 break;
             }
             else {
-                info!("Unable to parse {}", line);
+                info!("Unable to parse {}", line.clone());
                 thread::sleep(Duration::from_nanos(10));
             }
         } else {
@@ -340,20 +341,21 @@ fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String
         let mut lines = LINES_READ.lock().expect("blah!");
         if !lines.is_empty() {
             let prefix : Vec<String> = lines.drain(0..1).collect();
-            let line = prefix.first().expect("Vector was not empty.");
+            drop(lines);
+            let line = prefix.first().expect("Vector was not empty.").clone();
+            drop (prefix);
             if line.starts_with("{\"r\":") {
-                final_result = Some(String::from(line));
+                final_result = Some(String::from(line.clone()));
             }
             else if !json_only && line.starts_with("tinyg [mm] ok>")
             {
-                final_result = Some(String::from(line));
+                final_result = Some(String::from(line.clone()));
             }
             if final_result.is_some() {
                 break;
             }
             else {
-                drop(lines);
-                warn!("Unable to parse {}", line);
+                warn!("Unable to parse {}", line.clone());
                 thread::sleep(Duration::from_nanos(10));
             }
         } else {
@@ -447,8 +449,8 @@ impl Tinyg {
             let mut port_clone = port.try_clone().expect("Has to be able to clone");
             comm_thread = thread::spawn(move || {
                 let mut result = String::new();
+                let mut buffer = [0u8; 4096];
                 loop {
-                    let mut buffer = [0u8; 4096];
                     match port_clone.read(&mut buffer)
                     {
                         Ok(size) => {
@@ -489,7 +491,6 @@ impl Tinyg {
                                 {
                                     let mut lines = LINES_READ.lock().expect("blah!");
                                     lines.push(String::from(line.trim()));
-                                    drop(lines);
                                 }
                                 result = String::from(result.split_off(start as usize).trim());
 
@@ -527,13 +528,11 @@ impl Tinyg {
                                             let status: QueueReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *QUEUE_FREE.lock().expect("blah!") = status.qr.clone();
                                         }
-                                        else if sub.starts_with("{\"r\":{\"qr\":")
-                                        {
+                                        else if sub.starts_with("{\"r\":{\"qr\":") {
                                             let status_result: QueueReportResult = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *QUEUE_FREE.lock().expect("blah!") = status_result.r.qr.clone();
                                         }
-                                        else if sub.starts_with("{\"er\":")
-                                        {
+                                        else if sub.starts_with("{\"er\":") {
                                             let error_result : ErrorReportResult = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             error!("Received error: {}", error_result.er.msg);
                                         }
@@ -550,7 +549,6 @@ impl Tinyg {
                             debug!("Error in read thread: {}", error);
                         }
                     }
-                    thread::sleep(Duration::from_nanos(10));
                     match rx.try_recv() {
                         Ok(_) | Err(TryRecvError::Disconnected) => {
                             info!("Finished comm thread.");
