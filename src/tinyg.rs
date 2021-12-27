@@ -1,4 +1,4 @@
-use serialport::{SerialPortType, SerialPortSettings, DataBits, FlowControl, Parity, StopBits, SerialPort};
+use serialport::{SerialPortType, DataBits, FlowControl, Parity, StopBits, SerialPort};
 use std::time::{Duration, Instant};
 use std::io::{Write};
 use std::ops::Add;
@@ -408,12 +408,11 @@ impl Tinyg {
         for p in ports {
             match p.port_type {
                 SerialPortType::UsbPort(info) => {
-                    match info.product.as_deref() {
-                        Some("FT230X_Basic_UART") => {
+                    match info.clone().manufacturer.as_deref() {
+                        Some("Future Technology Devices International, Ltd") => {
                             tinyg_ports.push(p.port_name);
                         }
                         Some(_str) => {
-
                         }
                         None => {
 
@@ -433,15 +432,13 @@ impl Tinyg {
         }
         info!("Using port {}", tinyg_ports.get(0).unwrap());
         let tinyg_port = tinyg_ports.get(0).unwrap();
-        let s = SerialPortSettings {
-            baud_rate: 115200,
-            data_bits: DataBits::Eight,
-            flow_control: FlowControl::Hardware,
-            parity: Parity::None,
-            stop_bits: StopBits::One,
-            timeout: Duration::from_millis(500),
-        };
-        let mut port = serialport::open_with_settings(tinyg_port, &s).expect("Failed to open serial port");
+        let mut port = serialport::new(tinyg_port, 115_200)
+            .timeout(Duration::from_millis(500))
+            .data_bits(DataBits::Eight)
+            .flow_control(FlowControl::Hardware)
+            .parity(Parity::None)
+            .stop_bits(StopBits::One)
+            .open().expect("Failed to open serial port");
 
         let (tx, rx) = mpsc::channel();
         let comm_thread;
