@@ -9,11 +9,10 @@ extern crate gtk;
 extern crate gio;
 
 use gtk::prelude::*;
-use glib::{clone};
+use glib::{clone, idle_add_local};
 
 use std::fs::File;
 use std::thread;
-use std::time;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Mutex};
@@ -428,35 +427,34 @@ pub fn main() {
 
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_HIGH);
 
-    thread::spawn(move || {
+    let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
+    let mut old_status = tiny_g.get_latest_status().unwrap();
+    let mut old_queue_status = tiny_g.get_queue_status();
+    drop(tiny_g);
+    let _ = sender.send(Message::UpdatePosition(old_status));
+    let _ = sender.send( Message::UpdateQueueFree(old_queue_status));
+
+    idle_add_local(move || {
         let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
-        let mut old_status = tiny_g.get_latest_status().unwrap();
-        let mut old_queue_status = tiny_g.get_queue_status();
+        let status= tiny_g.get_latest_status().unwrap();
+        let queue_status = tiny_g.get_queue_status();
         drop(tiny_g);
-        let _ = sender.send(Message::UpdatePosition(old_status));
-        let _ = sender.send( Message::UpdateQueueFree(old_queue_status));
-        loop {
-            thread::sleep(time::Duration::from_millis(10));
-            let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
-            let status= tiny_g.get_latest_status().unwrap();
-            let queue_status = tiny_g.get_queue_status();
-            drop(tiny_g);
-            if old_status != status {
-                if old_status.line != status.line
-                {
-                    let _ = sender.send(Message::UpdateLine(status));
-                }
-                if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
-                {
-                    let _ = sender.send(Message::UpdatePosition(status));
-                }
-                old_status = status;
+        if old_status != status {
+            if old_status.line != status.line
+            {
+                let _ = sender.send(Message::UpdateLine(status));
             }
-            if old_queue_status != queue_status {
-                old_queue_status = queue_status;
-                let _ = sender.send( Message::UpdateQueueFree(queue_status));
+            if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
+            {
+                let _ = sender.send(Message::UpdatePosition(status));
             }
+            old_status = status;
         }
+        if old_queue_status != queue_status {
+            old_queue_status = queue_status;
+            let _ = sender.send( Message::UpdateQueueFree(queue_status));
+        }
+        Continue(true)
     });
 
     let pos_x_clone = pos_x.clone();
