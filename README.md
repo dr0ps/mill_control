@@ -1,6 +1,9 @@
 # mill_control - a simple tool to control a TinyG cnc controller
 
-This creates a single binary that is able to directly control a TinyG board. You can manually jog or send a gcode file. There is support for a WHB04B remote.
+This creates a single binary that is able to directly control a TinyG board.
+* You can manually jog or send a gcode file. Loading a Gcode file will run it immediately.
+* Feed hold works, cycle start continues the program.
+* There is support for a WHB04B remote.
 
 ![screenshot](mill_control.png)
 
