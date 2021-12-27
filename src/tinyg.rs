@@ -30,6 +30,8 @@ lazy_static! {
         });
 
     static ref QUEUE_FREE : Mutex<u8> = Mutex::new(32);
+
+    static ref INPUT_BUFFER_LENGTH : Mutex<usize> = Mutex::new(0);
 }
 
 pub struct Tinyg {
@@ -60,7 +62,8 @@ pub struct Status {
 #[derive(Clone, Copy, PartialEq)]
 pub struct QueueStatus {
     pub tinyg_planning_buffer_free : u8,
-    pub line_buffer_length : usize
+    pub line_buffer_length : usize,
+    pub input_buffer_length : usize
 }
 
 #[derive(Serialize)]
@@ -376,6 +379,7 @@ fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String
 }
 
 impl Tinyg {
+
     pub fn new() -> Self {
         Self { port:None }
     }
@@ -399,7 +403,12 @@ impl Tinyg {
         {
             line_length = LINES_READ.lock().expect("blah!").len();
         }
-        return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length};
+        let input_buffer_length;
+        {
+            input_buffer_length = *INPUT_BUFFER_LENGTH.lock().expect("blah!");
+        }
+
+        return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length, input_buffer_length : input_buffer_length};
     }
 
     pub fn initialize(&mut self) -> Result<(JoinHandle<()>, Sender<()>), String> {
@@ -452,6 +461,9 @@ impl Tinyg {
                     {
                         Ok(size) => {
                             result = result.add(String::from_utf8_lossy(&buffer[0..size]).trim());
+                            {
+                                *INPUT_BUFFER_LENGTH.lock().expect("Unable to lock input buffer length") = result.len();
+                            }
                             let mut start : i32 = -1;
                             let mut chars = result.char_indices();
                             let mut char_at = chars.next();
@@ -476,6 +488,9 @@ impl Tinyg {
                                         drop(lines);
 
                                         result = String::from(result.split_off(char_at.unwrap().0+1));
+                                        {
+                                            *INPUT_BUFFER_LENGTH.lock().expect("Unable to lock input buffer length") = result.len();
+                                        }
                                         chars = result.char_indices();
                                     }
                                     char_at = chars.next();
@@ -490,6 +505,9 @@ impl Tinyg {
                                     lines.push(String::from(line.trim()));
                                 }
                                 result = String::from(result.split_off(start as usize).trim());
+                                {
+                                    *INPUT_BUFFER_LENGTH.lock().expect("Unable to lock input buffer length") = result.len();
+                                }
 
                                 'json: while result.len() > 0 {
                                     let mut end = 0;
@@ -505,7 +523,7 @@ impl Tinyg {
                                                     end = char_at.unwrap().0 + 1;
                                                 }
                                             }
-                                            if char_at.unwrap().1 == '{' && char_at.unwrap().0 > 1 {
+                                            else if char_at.unwrap().1 == '{' && char_at.unwrap().0 > 1 {
                                                 open_brace_count = open_brace_count + 1;
                                             }
                                         } else {
@@ -517,6 +535,9 @@ impl Tinyg {
                                         let mut sub = String::from(sub.trim());
                                         sub.retain(|c| c != 0x13 as char && c != 0x11 as char);
                                         result = String::from(result.split_off(end));
+                                        {
+                                            *INPUT_BUFFER_LENGTH.lock().expect("Unable to lock input buffer length") = result.len();
+                                        }
                                         if sub.starts_with("{\"sr\":") {
                                             let status: StatusReport = serde_json::from_str(sub.as_str()).expect(format!("Unable to run serde with this input: >{}<", sub).as_str());
                                             *STATUS.lock().expect("blah!") = status.sr.clone();

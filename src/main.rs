@@ -492,7 +492,7 @@ pub fn main() {
                 text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.iter_at_line(status.line as i32 + 1));
             },
             Message::UpdateQueueFree(queue_status) => {
-                status_label_clone.set_text(format!("Free planning queue entries: {}, Lines read and ready to be consumed: {}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length).as_str());
+                status_label_clone.set_text(format!("Free planning queue entries: {:>2}, Lines read and ready to be consumed: {:>2}, Input buffer length: {:>4}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length, queue_status.input_buffer_length).as_str());
             }
         }
         // Returning false here would close the receiver
