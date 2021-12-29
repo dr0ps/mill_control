@@ -715,6 +715,10 @@ impl Tinyg {
         send_async(self.port.as_mut().expect(""), "!\r\n").expect("Failed to send feed hold.");
     }
 
+    pub fn reset(&mut self) {
+        send_async(self.port.as_mut().expect(""), "\x18\r\n").expect("Failed to send feed hold.");
+    }
+
     pub fn send_gcode(&mut self, code : Box<Vec<String>>)
     {
         send_gcode(self.port.as_mut().expect(""), code);

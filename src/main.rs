@@ -265,6 +265,10 @@ pub fn main() {
         TINY_G2.lock().expect("Unable to lock Tiny-G").feed_hold();
     });
 
+    builder.object::<gtk::Button>("reset_button").unwrap().connect_clicked(|_button| {
+        TINY_G2.lock().expect("Unable to lock Tiny-G").reset();
+    });
+
     builder.object::<gtk::Button>("x_minus_button").unwrap().connect_clicked(clone!(@weak builder => move |_button| {
         let distance = get_selected_distance(builder);
         match TINY_G.lock().expect("Unable to lock Tiny-G").move_xyza(Some(-distance), None, None, None) {
