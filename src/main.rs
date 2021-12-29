@@ -82,7 +82,7 @@ fn get_selected_rpm(builder:gtk::Builder) -> i32 {
 }
 
 pub fn main() {
-    SimpleLogger::new().with_level(Info).init().unwrap();
+    SimpleLogger::new().with_level(Info).without_timestamps().init().unwrap();
 
     let comm_thread;
     match TINY_G.lock().expect("Unable to lock Tiny-G").initialize() {
