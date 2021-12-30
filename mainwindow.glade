@@ -370,9 +370,11 @@ A</property>
               </packing>
             </child>
             <child>
-              <object class="GtkDrawingArea">
+              <object class="GtkGLArea" id="gl_area">
                 <property name="visible">True</property>
+                <property name="app-paintable">True</property>
                 <property name="can-focus">False</property>
+                <signal name="realize" handler="gl_init" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">True</property>

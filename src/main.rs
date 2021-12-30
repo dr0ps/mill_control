@@ -8,6 +8,12 @@ extern crate gdk;
 extern crate gtk;
 extern crate gio;
 
+use core::ffi::c_void;
+use gio::prelude::*;
+use glium::backend::Context;
+use glium::Surface;
+use glium::SwapBuffersError;
+
 use gtk::prelude::*;
 use glib::{clone, idle_add_local};
 
@@ -16,9 +22,9 @@ use std::thread;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Mutex};
+use std::time::Duration;
 
 use lazy_static::lazy_static;
-use gtk::TextTagBuilder;
 
 use log::{error, info};
 use simple_logger::SimpleLogger;
@@ -31,6 +37,37 @@ enum Message {
     UpdatePosition(tinyg::Status),
     UpdateLine(tinyg::Status),
     UpdateQueueFree(tinyg::QueueStatus)
+}
+
+struct GLAreaBackend {
+    gl_area: gtk::GLArea,
+}
+
+unsafe impl glium::backend::Backend for GLAreaBackend {
+    fn swap_buffers(&self) -> Result<(), SwapBuffersError> {
+        // GTK swaps the buffers after each "render" signal itself
+        Ok(())
+    }
+    unsafe fn get_proc_address(&self, symbol: &str) -> *const c_void {
+        gl_loader::get_proc_address(symbol) as *const _
+    }
+    fn get_framebuffer_dimensions(&self) -> (u32, u32) {
+        let allocation = self.gl_area.allocation();
+        (allocation.width as u32, allocation.height as u32)
+    }
+    fn is_current(&self) -> bool {
+        // GTK makes it current itself on each "render" signal
+        true
+    }
+    unsafe fn make_current(&self) {
+        self.gl_area.make_current();
+    }
+}
+
+impl GLAreaBackend {
+    fn new(gl_area: gtk::GLArea) -> Self {
+        Self { gl_area }
+    }
 }
 
 lazy_static! {
@@ -439,6 +476,37 @@ pub fn main() {
     let pos_z: gtk::Label = builder.object("pos_z").unwrap();
     let pos_a: gtk::Label = builder.object("pos_a").unwrap();
 
+    let gl_area: gtk::GLArea = builder.object("gl_area").unwrap();
+
+    main_window.show_all();
+
+    gl_loader::init_gl();
+
+    let context = unsafe {
+        Context::new(
+            GLAreaBackend::new(gl_area.clone()),
+            true,
+            glium::debug::DebugCallbackBehavior::DebugMessageOnError,
+        )
+            .unwrap()
+    };
+
+    gl_area.connect_render(move |_glarea, _glcontext| {
+        let mut frame =
+            glium::Frame::new(context.clone(), context.get_framebuffer_dimensions());
+
+        frame.clear_color(0.0, 0.0, 0.0, 1.0);
+
+        frame.finish().unwrap();
+        Inhibit(true)
+    });
+
+    const FPS: u64 = 60;
+    glib::source::timeout_add_local(Duration::from_millis(1_000 / FPS), move || {
+        gl_area.queue_draw();
+        glib::source::Continue(true)
+    });
+
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_HIGH);
 
     let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
@@ -479,7 +547,7 @@ pub fn main() {
     let status_label_clone = status_label.clone();
     let text_view_buffer = text_view_clone.buffer().unwrap();
 
-    let tag = TextTagBuilder::new().background("yellow").name("yellow_bg").build();
+    let tag = gtk::TextTagBuilder::new().background("yellow").name("yellow_bg").build();
     text_view_buffer.tag_table().unwrap().add(&tag);
 
     receiver.attach(None, move |msg| {
@@ -514,14 +582,14 @@ pub fn main() {
         glib::Continue(true)
     });
 
+
+
     main_window.connect_delete_event(|_, _| {
         // Stop the main loop.
         gtk::main_quit();
         // Let the default handler destroy the window.
         Inhibit(false)
     });
-
-    main_window.show_all();
 
     gtk::main();
     let _ = whb_thread.1.send(());
