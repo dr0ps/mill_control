@@ -30,6 +30,8 @@ use log::{error, info};
 use simple_logger::SimpleLogger;
 use log::LevelFilter::Info;
 
+use gcode::{Parser, Mnemonic, Nop, buffers::DefaultBuffers};
+
 mod tinyg;
 mod whb04b;
 
@@ -217,6 +219,26 @@ pub fn main() {
             .buffer()
             .expect("Couldn't get buffer")
             .set_text(&contents);
+
+        let mut absolute = true;
+
+        let lines: Parser<Nop, DefaultBuffers> = Parser::new(&contents, Nop);
+        for line in lines {
+            for code in line.gcodes() {
+                match code.mnemonic() {
+                    Mnemonic::General => match code.major_number() {
+                        0 | 1 => {
+                        }
+                        2 | 3 => {
+                        }
+                        90 => absolute = true,
+                        91 => absolute = false,
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        }
     }));
 
     builder.object::<gtk::Button>("start_button").unwrap().connect_clicked(clone!(@weak text_view => move |_button| {

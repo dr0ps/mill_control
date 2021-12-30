@@ -66,6 +66,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84450d0b4a8bd1ba4144ce8ce718fbc5d071358b1e5384bace6536b3d1f2d5b3"
 
 [[package]]
+name = "arrayvec"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
+
+[[package]]
 name = "atk"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,6 +535,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gcode"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5125264a3fbfa54f30f79428f4e69d74ad279f554ba90829189517f407f41dbc"
+dependencies = [
+ "arrayvec",
+ "cfg-if 0.1.10",
+ "libm",
+]
+
+[[package]]
 name = "gdk"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -974,6 +991,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
+
+[[package]]
 name = "libudev"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1081,6 +1104,7 @@ name = "mill_control"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "gcode",
  "gdk",
  "gio",
  "gl_loader",
