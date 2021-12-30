@@ -178,8 +178,18 @@ pub fn main() {
 
         text_view
             .buffer()
-            .expect("Couldn't get window")
+            .expect("Couldn't get buffer")
             .set_text(&contents);
+    }));
+
+    builder.object::<gtk::Button>("start_button").unwrap().connect_clicked(clone!(@weak text_view => move |_button| {
+        let buffer = text_view
+            .buffer()
+            .expect("Couldn't get buffer");
+
+        let (start, end) = buffer.bounds();
+
+        let contents = buffer.text(&start, &end, true).expect("Couldn't get contents.");
 
         let mut gcode_lines : Vec<String> = Vec::new();
         let mut line_number = 0;
