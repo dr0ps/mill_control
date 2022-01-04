@@ -536,9 +536,8 @@ dependencies = [
 
 [[package]]
 name = "gcode"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5125264a3fbfa54f30f79428f4e69d74ad279f554ba90829189517f407f41dbc"
+version = "0.6.2-alpha.0"
+source = "git+https://github.com/dr0ps/gcode-rs#3ec3fe0169efe7b42e6afc9cfbadbe3c0b32d099"
 dependencies = [
  "arrayvec",
  "cfg-if 0.1.10",

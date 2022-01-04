@@ -21,7 +21,8 @@ gtk = "0.14.3"
 gdk = "0.14.3"
 glium = "0.31.0"
 gl_loader = "0.1.2"
-gcode = "0.6.1"
+#gcode = "0.6.1"
+gcode = { git = "https://github.com/dr0ps/gcode-rs" }
 
 [dependencies.gio]
 version = "0.14.8"
