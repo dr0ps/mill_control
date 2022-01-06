@@ -3,9 +3,8 @@ use gcode::{Parser, Mnemonic, Nop, buffers::DefaultBuffers, GCode};
 use glium::backend::{Context, Facade};
 use glium::index::IndicesSource;
 use glium::index::PrimitiveType::LineStrip;
-use glium::{Program, Surface, uniform, VertexBuffer};
+use glium::{DrawParameters, Program, Surface, uniform, VertexBuffer};
 use gtk::GLArea;
-use log::{info, warn};
 use crate::gl_facade::GLFacade;
 use crate::gl_area_backend::GLAreaBackend;
 use crate::vertex::Vertex;
@@ -21,6 +20,8 @@ pub struct GRender {
     width: i32,
     height: i32,
     angle_x: f32,
+    angle_y: f32,
+    zoom: f32
 }
 
 fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool) -> Vertex {
@@ -45,7 +46,7 @@ fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
             *loc_y += y as f32;
         }
     }
-    Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: [0.0, 1.0, 0.0]}
+    Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: match code.major_number() { 1 => [0.0, 1.0, 0.0], _ => [1.0, 1.0, 0.0]} }
 }
 
 fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool) -> Vec<Vertex> {
@@ -110,7 +111,7 @@ fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
 
     *loc_x = x;
     *loc_y = y;
-    // TODO: figure out how wide the z drawing should be (above and below current z)
+
     if code.major_number() == 2 {  //clockwise, decreasing radians
         if angle2 > angle1 {
             angle1 += 2.0*PI; // 4.712388907
@@ -130,11 +131,9 @@ fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
         if angle2 < angle1 {
             angle2 += 2.0*PI;
         }
-        info!("Angles: {}, {}", angle1, angle2);
-        let mut angle_range = angle2 - angle1;
+        let angle_range = angle2 - angle1;
         let step = angle_range / radius / 10.0;
         let mut current_angle = angle1;
-        info!("Start, step, range: {}, {}, {}", current_angle, step, angle_range);
 
         while current_angle < angle2
         {
@@ -149,9 +148,48 @@ fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
     result
 }
 
+fn dot_product(m1 : [[f32; 4]; 4], m2 : [[f32; 4]; 4]) -> [[f32; 4]; 4] {
+    let mut result =[
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0]
+    ];
+
+    for i in 0..4 {
+        for j in 0..4 {
+            for k in 0..4 {
+                result[i][j] += m1[i][k] * m2[k][j];
+            }
+        }
+    }
+    result
+}
+
+#[test]
+fn test_dot_product_identity() {
+    let a = [
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 0.0, 1.0, 2.0],
+        [3.0, 4.0, 5.0, 6.0]
+    ];
+
+    let identiy = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0]
+    ];
+
+    assert_eq!(a, dot_product(a, identiy));
+    assert_eq!(a, dot_product(identiy, a));
+}
+
+
 impl GRender {
     pub fn new() -> Self {
-        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0}
+        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 0.0}
     }
 
     pub fn initialize(gl_area : &GLArea) -> (GLFacade, Program){
@@ -172,12 +210,13 @@ impl GRender {
         in vec3 base_color;
         out vec3 b_color;
         out float depth;
-        uniform mat4 perspective;
         uniform mat4 matrix;
         uniform mat4 rotation;
+        uniform mat4 translation;
+        uniform mat4 perspective;
         void main() {
             b_color = base_color;
-            gl_Position = rotation * perspective * matrix  * vec4(position, 1.0);
+            gl_Position = perspective * translation * rotation * matrix * vec4(position, 1.0);
             depth = gl_Position.z;
         }
     "#;
@@ -187,11 +226,10 @@ impl GRender {
         in float depth;
         in vec3 b_color;
         out vec4 color;
-        uniform vec3 u_light;
         void main() {
-            float brightness = 1-depth;
+            float brightness = 2-depth;
             vec3 regular_color = b_color;
-            vec3 dark_color = b_color * 0.5;
+            vec3 dark_color = b_color * 0.1;
             color = vec4(mix(dark_color, regular_color, brightness), 1.0);
         }
     "#;
@@ -257,24 +295,50 @@ impl GRender {
 
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        let matrix = [
-            [0.01, 0.0, 0.0, 0.0],
-            [0.0, 0.01, 0.0, 0.0],
-            [0.0, 0.0, 0.01, 0.0],
-            [0.0, 0.0, 0.0, 1.0f32]
-        ];
-
-        let angle :f32 = self.angle_x;
-        self.angle_x += 0.01;
-
-        let rotation = [
+        let initial_translation = [
             [1.0, 0.0, 0.0, 0.0],
-            [0.0, angle.cos(), angle.sin(), 0.0],
-            [0.0, -angle.sin(), angle.cos(), 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-(self.max_x-self.min_x)/2.0, -(self.max_y-self.min_y)/2.0, -(self.max_z-self.min_z)/2.0, 1.0f32]
+        ];
+
+        let initial_scale_factor = 1.0 / (self.max_x-self.min_x).max(self.max_y-self.min_y).max(self.max_z-self.min_z);
+
+        let initial_scale = [
+            [initial_scale_factor, 0.0, 0.0, 0.0],
+            [0.0, initial_scale_factor, 0.0, 0.0],
+            [0.0, 0.0, initial_scale_factor, 0.0],
             [0.0, 0.0, 0.0, 1.0f32]
         ];
 
-        /*let perspective = {
+        let initial_rotation = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, (-0.5*PI).cos(), (-0.5*PI).sin(), 0.0],
+            [0.0, (0.5*PI).sin(), (-0.5*PI).cos(), 0.0],
+            [0.0, 0.0, 0.0, 1.0f32]
+        ];
+
+        let rotation = dot_product(
+         [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, self.angle_y.cos(), self.angle_y.sin(), 0.0],
+            [0.0, -self.angle_y.sin(), self.angle_y.cos(), 0.0],
+            [0.0, 0.0, 0.0, 1.0f32]
+        ], [
+            [self.angle_x.cos(), 0.0, -self.angle_x.sin(), 0.0],
+            [0.0, 1.0, 0.1, 0.0],
+            [-self.angle_x.sin(), 0.0, self.angle_x.cos(), 0.0],
+            [0.0, 0.0, 0.0, 1.0f32]
+        ]);
+
+        let translation = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 2.0, 1.0f32]
+        ];
+
+        let perspective = {
             let aspect_ratio = self.height as f32 / self.width as f32;
 
             let fov: f32 = 3.141592 / 3.0;
@@ -289,24 +353,28 @@ impl GRender {
                 [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
                 [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
             ]
-        };*/
-        let perspective = [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0f32]
-        ];
+        };
 
+        let matrix = dot_product(dot_product(initial_translation, initial_scale), initial_rotation);
 
-        let light = [-1.0, 0.4, 0.9f32];
+        let draw_parameters = DrawParameters::default();
 
-        frame.draw((&vertex_buffer, &vertex_buffer), IndicesSource::NoIndices {primitives : LineStrip}, program, &uniform! { matrix: matrix, perspective: perspective, rotation: rotation, u_light: light },
-                   &Default::default()).unwrap();
+        frame.draw((&vertex_buffer, &vertex_buffer), IndicesSource::NoIndices {primitives : LineStrip}, program, &uniform! { matrix: matrix, rotation: rotation, translation: translation, perspective: perspective },
+                   &draw_parameters).unwrap();
         frame.finish().unwrap();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
         self.width = width;
         self.height = height;
+    }
+
+    pub fn set_angle(&mut self, pos_x: f32, pos_y: f32) {
+        self.angle_x = PI * (self.width as f32 / 2.0 - pos_x) / self.width as f32;
+        self.angle_y = PI * (self.height as f32 / 2.0 - pos_y) / self.height as f32;
+    }
+
+    pub fn set_zoom(&mut self, zoom: f32) {
+        self.zoom += zoom;
     }
 }

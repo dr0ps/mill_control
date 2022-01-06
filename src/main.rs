@@ -23,6 +23,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Mutex};
 use std::time::Duration;
+use gdk::{EventMask, ModifierType};
 
 use lazy_static::lazy_static;
 
@@ -179,6 +180,20 @@ pub fn main() {
     let status_label : gtk::Label = builder.object("status").unwrap();
 
     let gl_area: gtk::GLArea = builder.object("gl_area").unwrap();
+    gl_area.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK | EventMask::POINTER_MOTION_MASK | EventMask::SCROLL_MASK);
+    gl_area.connect_motion_notify_event(|_gl_area, event_motion| {
+        let pos = event_motion.position();
+        G_RENDER.lock().expect("Unable to lock G_RENDER").set_angle(pos.0 as f32, pos.1 as f32);
+        if event_motion.state().contains(ModifierType::BUTTON1_MASK) {
+            info!("inc");
+            G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(0.1 as f32);
+        }
+        if event_motion.state().contains(ModifierType::BUTTON2_MASK) {
+            info!("dec");
+            G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(-0.1 as f32);
+        }
+        Inhibit(true)
+    });
 
     let file_choose_button : gtk::FileChooserButton = builder.object("file_choose_button").unwrap();
     file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
@@ -194,7 +209,12 @@ pub fn main() {
             .expect("Couldn't get buffer")
             .set_text(&contents);
 
-        G_RENDER.lock().expect("").update(&contents);
+        match G_RENDER.lock().expect("").update(&contents) {
+            Err(error) => {
+                error!("Error in update {}", error);
+            }
+            _ => {}
+        }
     }));
 
     builder.object::<gtk::Button>("start_button").unwrap().connect_clicked(clone!(@weak text_view => move |_button| {
@@ -460,7 +480,7 @@ pub fn main() {
 
     let (facade, program) = GRender::initialize(&gl_area);
 
-    gl_area.connect_render(move |_glarea, glcontext| {
+    gl_area.connect_render(move |_glarea, _glcontext| {
         G_RENDER.lock().expect("").draw(&facade, &program);
         Inhibit(true)
     });
