@@ -23,7 +23,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Mutex};
 use std::time::Duration;
-use gdk::{EventMask, ModifierType};
+use gdk::{EventMask};
 
 use lazy_static::lazy_static;
 
@@ -180,18 +180,15 @@ pub fn main() {
     let status_label : gtk::Label = builder.object("status").unwrap();
 
     let gl_area: gtk::GLArea = builder.object("gl_area").unwrap();
-    gl_area.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK | EventMask::POINTER_MOTION_MASK | EventMask::SCROLL_MASK);
+    gl_area.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK | EventMask::POINTER_MOTION_MASK | EventMask::SCROLL_MASK | EventMask::SMOOTH_SCROLL_MASK);
     gl_area.connect_motion_notify_event(|_gl_area, event_motion| {
         let pos = event_motion.position();
         G_RENDER.lock().expect("Unable to lock G_RENDER").set_angle(pos.0 as f32, pos.1 as f32);
-        if event_motion.state().contains(ModifierType::BUTTON1_MASK) {
-            info!("inc");
-            G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(0.1 as f32);
-        }
-        if event_motion.state().contains(ModifierType::BUTTON2_MASK) {
-            info!("dec");
-            G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(-0.1 as f32);
-        }
+        Inhibit(true)
+    });
+    gl_area.connect_scroll_event(|_gl_area, event_scroll| {
+        let (_x, y) = event_scroll.scroll_deltas().unwrap();
+        G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(y as f32 / 10.0);
         Inhibit(true)
     });
 

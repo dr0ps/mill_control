@@ -190,7 +190,7 @@ fn test_dot_product_identity() {
 
 impl GRender {
     pub fn new() -> Self {
-        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 0.0, last_active_line: 0}
+        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 1.0, last_active_line: 0}
     }
 
     pub fn initialize(gl_area : &GLArea) -> (GLFacade, Program){
@@ -342,6 +342,13 @@ impl GRender {
             [0.0, 0.0, 2.0, 1.0f32]
         ];
 
+        let zoom = [
+            [1.3_f32.powf(self.zoom), 0.0, 0.0, 0.0],
+            [0.0, 1.3_f32.powf(self.zoom), 0.0, 0.0],
+            [0.0, 0.0, 1.3_f32.powf(self.zoom), 0.0],
+            [0.0, 0.0, 0.0, 1.0f32]
+        ];
+
         let perspective = {
             let aspect_ratio = self.height as f32 / self.width as f32;
 
@@ -359,7 +366,7 @@ impl GRender {
             ]
         };
 
-        let matrix = dot_product(dot_product(initial_translation, initial_scale), initial_rotation);
+        let matrix = dot_product(dot_product(dot_product(initial_translation, initial_scale), initial_rotation), zoom);
 
         let draw_parameters = DrawParameters {
             blend: Blend {
