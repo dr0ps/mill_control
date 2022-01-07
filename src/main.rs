@@ -513,6 +513,7 @@ pub fn main() {
             if old_status.line != status.line
             {
                 let _ = sender.send(Message::UpdateLine(status));
+                G_RENDER.lock().expect("Unable to lock G_RENDER").update_line(status.line);
             }
             if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
             {

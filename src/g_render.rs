@@ -3,7 +3,7 @@ use gcode::{Parser, Mnemonic, Nop, buffers::DefaultBuffers, GCode};
 use glium::backend::{Context, Facade};
 use glium::index::IndicesSource;
 use glium::index::PrimitiveType::LineStrip;
-use glium::{DrawParameters, Program, Surface, uniform, VertexBuffer};
+use glium::{Blend, BlendingFunction, DrawParameters, Program, Surface, uniform, VertexBuffer};
 use gtk::GLArea;
 use crate::gl_facade::GLFacade;
 use crate::gl_area_backend::GLAreaBackend;
@@ -21,10 +21,11 @@ pub struct GRender {
     height: i32,
     angle_x: f32,
     angle_y: f32,
-    zoom: f32
+    zoom: f32,
+    last_active_line: u32,
 }
 
-fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool) -> Vertex {
+fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool, line: u32) -> Vertex {
     if let Some(z) = code.value_for('z') {
         if absolute {
             *loc_z = z.into();
@@ -46,10 +47,10 @@ fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
             *loc_y += y as f32;
         }
     }
-    Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: match code.major_number() { 1 => [0.0, 1.0, 0.0], _ => [1.0, 1.0, 0.0]} }
+    Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: match code.major_number() { 1 => [0.0, 1.0, 0.0], _ => [1.0, 1.0, 0.0]}, line }
 }
 
-fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool) -> Vec<Vertex> {
+fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool, line: u32) -> Vec<Vertex> {
 
     let mut result = Vec::new();
 
@@ -125,7 +126,7 @@ fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
             let x = center_x + radius * current_angle.cos();
             let y = center_y + radius * current_angle.sin();
             current_angle -= step;
-            result.push(Vertex{position: [x, y, *loc_z], base_color: [0.0, 0.0, 1.0]});
+            result.push(Vertex{position: [x, y, *loc_z], base_color: [0.0, 0.0, 1.0], line});
         }
     } else { // counter-clockwise, increasing radians
         if angle2 < angle1 {
@@ -140,11 +141,11 @@ fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
             let x = center_x + radius * current_angle.cos();
             let y = center_y + radius * current_angle.sin();
             current_angle += step;
-            result.push(Vertex{position: [x, y, *loc_z], base_color: [0.0, 0.0, 1.0]});
+            result.push(Vertex{position: [x, y, *loc_z], base_color: [0.0, 0.0, 1.0], line});
         }
 
     }
-    result.push(Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: [0.0, 0.0, 1.0]});
+    result.push(Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: [0.0, 0.0, 1.0], line});
     result
 }
 
@@ -189,7 +190,7 @@ fn test_dot_product_identity() {
 
 impl GRender {
     pub fn new() -> Self {
-        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 0.0}
+        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 0.0, last_active_line: 0}
     }
 
     pub fn initialize(gl_area : &GLArea) -> (GLFacade, Program){
@@ -227,7 +228,7 @@ impl GRender {
         in vec3 b_color;
         out vec4 color;
         void main() {
-            float brightness = 2-depth;
+            float brightness = 2.5-depth;
             vec3 regular_color = b_color;
             vec3 dark_color = b_color * 0.1;
             color = vec4(mix(dark_color, regular_color, brightness), 1.0);
@@ -240,21 +241,23 @@ impl GRender {
 
     pub fn update(&mut self, contents : &str) -> Result<(), String>{
         self.line.clear();
+        self.last_active_line = 0;
         let mut absolute = true;
         let mut loc_x : f32 = 0.0;
         let mut loc_y : f32 = 0.0;
         let mut loc_z : f32 = 0.0;
 
         let lines: Parser<Nop, DefaultBuffers> = Parser::new(&contents, Nop);
+        let mut line_number = 0;
         for line in lines {
             for code in line.gcodes() {
                 match code.mnemonic() {
                     Mnemonic::General => match code.major_number() {
                         0 | 1 => {
-                            self.line.push(create_vertex_g1(code, &mut loc_x, &mut loc_y, &mut loc_z, absolute))
+                            self.line.push(create_vertex_g1(code, &mut loc_x, &mut loc_y, &mut loc_z, absolute, line_number ))
                         }
                         2 | 3 => {
-                            self.line.append(&mut create_vertex_g3(code, &mut loc_x, &mut loc_y, &mut loc_z, absolute))
+                            self.line.append(&mut create_vertex_g3(code, &mut loc_x, &mut loc_y, &mut loc_z, absolute, line_number))
                         }
                         90 => absolute = true,
                         91 => absolute = false,
@@ -281,6 +284,7 @@ impl GRender {
                     self.max_z = loc_z;
                 }
             }
+            line_number += 1;
         }
         Ok(())
 
@@ -291,7 +295,7 @@ impl GRender {
         let mut frame =
             glium::Frame::new(context.clone(), context.get_framebuffer_dimensions());
 
-        let vertex_buffer = VertexBuffer::dynamic(facade, self.line.as_slice()).unwrap();
+        let vertex_buffer = VertexBuffer::persistent(facade, self.line.as_slice()).unwrap();
 
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
 
@@ -299,7 +303,7 @@ impl GRender {
             [1.0, 0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [-(self.max_x-self.min_x)/2.0, -(self.max_y-self.min_y)/2.0, -(self.max_z-self.min_z)/2.0, 1.0f32]
+            [-(self.max_x+self.min_x)/2.0, -(self.max_y+self.min_y)/2.0, -(self.max_z+self.min_z)/2.0, 1.0f32]
         ];
 
         let initial_scale_factor = 1.0 / (self.max_x-self.min_x).max(self.max_y-self.min_y).max(self.max_z-self.min_z);
@@ -314,7 +318,7 @@ impl GRender {
         let initial_rotation = [
             [1.0, 0.0, 0.0, 0.0],
             [0.0, (-0.5*PI).cos(), (-0.5*PI).sin(), 0.0],
-            [0.0, (0.5*PI).sin(), (-0.5*PI).cos(), 0.0],
+            [0.0, -(-0.5*PI).sin(), (-0.5*PI).cos(), 0.0],
             [0.0, 0.0, 0.0, 1.0f32]
         ];
 
@@ -327,7 +331,7 @@ impl GRender {
         ], [
             [self.angle_x.cos(), 0.0, -self.angle_x.sin(), 0.0],
             [0.0, 1.0, 0.1, 0.0],
-            [-self.angle_x.sin(), 0.0, self.angle_x.cos(), 0.0],
+            [self.angle_x.sin(), 0.0, self.angle_x.cos(), 0.0],
             [0.0, 0.0, 0.0, 1.0f32]
         ]);
 
@@ -341,7 +345,7 @@ impl GRender {
         let perspective = {
             let aspect_ratio = self.height as f32 / self.width as f32;
 
-            let fov: f32 = 3.141592 / 3.0;
+            let fov: f32 = PI / 3.0;
             let zfar = 1024.0;
             let znear = 0.1;
 
@@ -357,11 +361,19 @@ impl GRender {
 
         let matrix = dot_product(dot_product(initial_translation, initial_scale), initial_rotation);
 
-        let draw_parameters = DrawParameters::default();
+        let draw_parameters = DrawParameters {
+            blend: Blend {
+                color: BlendingFunction::Max,
+                alpha: BlendingFunction::Max,
+                .. Default::default()
+            },
+            .. Default::default()
+        };
 
         frame.draw((&vertex_buffer, &vertex_buffer), IndicesSource::NoIndices {primitives : LineStrip}, program, &uniform! { matrix: matrix, rotation: rotation, translation: translation, perspective: perspective },
                    &draw_parameters).unwrap();
         frame.finish().unwrap();
+        vertex_buffer.invalidate();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
@@ -376,5 +388,24 @@ impl GRender {
 
     pub fn set_zoom(&mut self, zoom: f32) {
         self.zoom += zoom;
+    }
+
+    pub fn update_line(&mut self, line: u32) {
+        for n in self.last_active_line as usize  .. self.line.len() {
+            let mut vertex = self.line.get_mut(n).unwrap();
+            if vertex.line < line {
+                vertex.base_color = [0.0, 0.0, 0.0];
+            }
+            else if vertex.line == line {
+                vertex.base_color = [0.0, 0.0, 0.0];
+                self.last_active_line = n as u32;
+            }
+            else if vertex.line < line + 10 {
+                vertex.base_color = [1.0, 1.0, 1.0];
+            }
+            else {
+                break;
+            }
+        }
     }
 }
