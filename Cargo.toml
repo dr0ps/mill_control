@@ -21,8 +21,8 @@ log = "0.4.14"
 simple_logger = "1.16.0"
 hidapi = "1.3.2"
 glib = "0.14.8"
-gtk = "0.14.3"
-gdk = "0.14.3"
+gtk4 = "0.3.1"
+gdk4 = "0.3.1"
 glium = "0.31.0"
 gl_loader = "0.1.2"
 #gcode = "0.6.1"
@@ -30,3 +30,8 @@ gcode = { git = "https://github.com/dr0ps/gcode-rs" }
 
 [dependencies.gio]
 version = "0.14.8"
+
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "5568f11"
+dependencies = ["gtk", "libusb"]

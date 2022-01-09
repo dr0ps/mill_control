@@ -1,0 +1,718 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <object class="GtkFileFilter" id="gcode_file_filter">
+    <mime-types>
+      <mime-type>text/plain</mime-type>
+      <mime-type>text/x.gcode</mime-type>
+    </mime-types>
+    <patterns>
+      <pattern>*.gcode</pattern>
+    </patterns>
+  </object>
+  <object class="GtkApplicationWindow" id="main_window">
+    <property name="default-width">1024</property>
+    <property name="default-height">768</property>
+    <property name="child">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkBox">
+            <property name="vexpand">1</property>
+            <child>
+              <object class="GtkBox">
+                <property name="hexpand">1</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="vexpand">1</property>
+                    <property name="focusable">1</property>
+                    <property name="vscrollbar-policy">always</property>
+                    <property name="has-frame">True</property>
+                    <property name="child">
+                      <object class="GtkTextView" id="gcode_view">
+                        <property name="focusable">1</property>
+                        <property name="editable">0</property>
+                        <property name="monospace">1</property>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkButton" id="file_chooser_button">
+                    <property name="label" translatable="yes">Open File</property>
+                    <property name="focusable">1</property>
+                    <property name="receives-default">1</property>
+                    <style>
+                      <class name="FileChooserButton"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="margin-start">10</property>
+                    <property name="margin-end">10</property>
+                    <property name="margin-top">10</property>
+                    <property name="margin-bottom">10</property>
+                    <child>
+                      <object class="GtkButton" id="start_line_button">
+                        <property name="label" translatable="yes">Set Start Line</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="start_button">
+                        <property name="label" translatable="yes">Start Job</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <style>
+                          <class name="StartButton"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="stop_button">
+                        <property name="label" translatable="yes">Abort Job</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox" id="box_position">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">0</property>
+                <child>
+                  <object class="GtkBox">
+                    <child>
+                      <object class="GtkButton" id="refallhome_button">
+                        <property name="hexpand">0</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">R
+E
+F
+
+A
+L
+L
+
+H
+O
+M
+E</property>
+                            <property name="justify">center</property>
+                            <style>
+                              <class name="RefAllHomeButton"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkBox">
+                            <child>
+                              <object class="GtkButton" id="zerox_button">
+                                <property name="focusable">1</property>
+                                <property name="receives-default">1</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Zero
+X</property>
+                                    <property name="justify">center</property>
+                                  </object>
+                                </child>
+                                <style>
+                                  <class name="ZeroButton"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="pos_x">
+                                <property name="hexpand">1</property>
+                                <property name="width-request">150</property>
+                                <property name="label" translatable="yes">x</property>
+                                <property name="justify">right</property>
+                                <property name="xalign">0.949999988079071</property>
+                                <style>
+                                  <class name="PositionLabel"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <child>
+                              <object class="GtkButton" id="zeroy_button">
+                                <property name="focusable">1</property>
+                                <property name="receives-default">1</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Zero
+Y</property>
+                                    <property name="justify">center</property>
+                                  </object>
+                                </child>
+                                <style>
+                                  <class name="ZeroButton"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="pos_y">
+                                <property name="hexpand">1</property>
+                                <property name="width-request">150</property>
+                                <property name="label" translatable="yes">y</property>
+                                <property name="xalign">0.949999988079071</property>
+                                <style>
+                                  <class name="PositionLabel"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <child>
+                              <object class="GtkButton" id="zeroz_button">
+                                <property name="focusable">1</property>
+                                <property name="receives-default">1</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Zero
+Z</property>
+                                    <property name="justify">center</property>
+                                  </object>
+                                </child>
+                                <style>
+                                  <class name="ZeroButton"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="pos_z">
+                                <property name="hexpand">1</property>
+                                <property name="width-request">150</property>
+                                <property name="label" translatable="yes">z</property>
+                                <property name="xalign">0.949999988079071</property>
+                                <style>
+                                  <class name="PositionLabel"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <child>
+                              <object class="GtkButton" id="zeroa_button">
+                                <property name="focusable">1</property>
+                                <property name="receives-default">1</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Zero
+A</property>
+                                    <property name="justify">center</property>
+                                  </object>
+                                </child>
+                                <style>
+                                  <class name="ZeroButton"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="pos_a">
+                                <property name="hexpand">1</property>
+                                <property name="width-request">150</property>
+                                <property name="label" translatable="yes">a</property>
+                                <property name="xalign">0.949999988079071</property>
+                                <style>
+                                  <class name="PositionLabel"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <child>
+                      <object class="GtkToggleButton" id="g54">
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G54</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="g55">
+                        <property name="active">1</property>
+                        <property name="group">g54</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G55</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="g56">
+                        <property name="active">1</property>
+                        <property name="group">g54</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G56</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="g57">
+                        <property name="active">1</property>
+                        <property name="group">g54</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G57</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="g58">
+                        <property name="active">1</property>
+                        <property name="group">g54</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G58</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="g59">
+                        <property name="active">1</property>
+                        <property name="group">g54</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">G59</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkGLArea" id="gl_area">
+                <property name="width-request">300</property>
+                <property name="hexpand">1</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkSeparator"/>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="valign">center</property>
+            <property name="baseline-position">bottom</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkBox">
+                    <child>
+                      <object class="GtkBox">
+                        <property name="margin-start">10</property>
+                        <property name="margin-end">10</property>
+                        <property name="margin-top">10</property>
+                        <property name="margin-bottom">10</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkButton" id="cycle_start_button">
+                            <property name="label" translatable="yes">Cycle Start</property>
+                            <property name="focusable">1</property>
+                            <property name="receives-default">1</property>
+                            <property name="margin-bottom">5</property>
+                            <style>
+                              <class name="CycleStartButton"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="feed_hold_button">
+                            <property name="label" translatable="yes">Feed Hold</property>
+                            <property name="focusable">1</property>
+                            <property name="receives-default">1</property>
+                            <property name="margin-top">5</property>
+                            <property name="margin-bottom">5</property>
+                            <style>
+                              <class name="FeedHoldButton"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="reset_button">
+                            <property name="label" translatable="yes">Reset</property>
+                            <property name="focusable">1</property>
+                            <property name="receives-default">1</property>
+                            <property name="margin-top">5</property>
+                            <style>
+                              <class name="ResetButton"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparator">
+                <property name="orientation">vertical</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox" id="box_jog">
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Jog</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkGrid">
+                    <property name="row-homogeneous">1</property>
+                    <property name="column-homogeneous">1</property>
+                    <child>
+                      <object class="GtkButton" id="x_minus_y_plus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">⬉</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">0</property>
+                          <property name="row">0</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="y_plus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Y+</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">1</property>
+                          <property name="row">0</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="x_plus_y_plus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">⬈</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">2</property>
+                          <property name="row">0</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="z_plus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <property name="margin-start">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Z+</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">3</property>
+                          <property name="row">0</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="x_minus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">X-</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">0</property>
+                          <property name="row">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="x_plus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">X+</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">2</property>
+                          <property name="row">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="x_minus_y_minus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">⬋</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">0</property>
+                          <property name="row">2</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="y_minus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Y-</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">1</property>
+                          <property name="row">2</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="x_plus_y_minus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">⬊</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">2</property>
+                          <property name="row">2</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="z_minus_button">
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                        <property name="margin-start">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Z-</property>
+                          </object>
+                        </child>
+                        <layout>
+                          <property name="column">3</property>
+                          <property name="row">2</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="yes">X/Y</property>
+                        <layout>
+                          <property name="column">1</property>
+                          <property name="row">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="yes">Z</property>
+                        <layout>
+                          <property name="column">3</property>
+                          <property name="row">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="margin-top">10</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="yes">Distance:</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="move_full_radio">
+                        <property name="active">1</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">1</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="move_tenth_radio">
+                        <property name="group">move_full_radio</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">0.1</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="move_hundreds_radio">
+                        <property name="group">move_full_radio</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">0.01</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="move_thousands_radio">
+                        <property name="group">move_full_radio</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">0.01</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton">
+                        <property name="group">move_full_radio</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Custom</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkEntry" id="distance_entry">
+                        <property name="focusable">1</property>
+                        <property name="width-chars">7</property>
+                        <property name="text" translatable="yes">10.0</property>
+                        <property name="placeholder-text" translatable="yes">10.0</property>
+                        <property name="input-purpose">number</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparator">
+                <property name="orientation">vertical</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox" id="box_spindle">
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Spindle</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <child>
+                      <object class="GtkEntry" id="rpm_entry">
+                        <property name="focusable">1</property>
+                        <property name="max-length">6</property>
+                        <property name="text" translatable="yes">10000</property>
+                        <property name="input-purpose">digits</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="spindle_cw_button">
+                        <property name="label" translatable="yes">Set
+CW</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="spindle_ccw_button">
+                        <property name="label" translatable="yes">Set
+CCW</property>
+                        <property name="focusable">1</property>
+                        <property name="receives-default">1</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkButton" id="spindle_stop_button">
+                    <property name="label" translatable="yes">Stop</property>
+                    <property name="focusable">1</property>
+                    <property name="receives-default">1</property>
+                    <property name="margin-top">10</property>
+                    <style>
+                      <class name="SpindleStopButton"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="status">
+            <property name="xalign">0</property>
+            <style>
+              <class name="StatusRow"/>
+            </style>
+          </object>
+        </child>
+      </object>
+    </property>
+  </object>
+</interface>

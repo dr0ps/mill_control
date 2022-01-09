@@ -1,9 +1,9 @@
 use std::ffi::c_void;
 use glium::SwapBuffersError;
-use gtk::prelude::*;
+use gtk4::prelude::*;
 
 pub struct GLAreaBackend {
-    gl_area: gtk::GLArea,
+    gl_area: gtk4::GLArea,
 }
 
 unsafe impl glium::backend::Backend for GLAreaBackend {
@@ -28,7 +28,7 @@ unsafe impl glium::backend::Backend for GLAreaBackend {
 }
 
 impl GLAreaBackend {
-    pub fn new(gl_area: gtk::GLArea) -> Self {
+    pub fn new(gl_area: gtk4::GLArea) -> Self {
         Self { gl_area }
     }
 }

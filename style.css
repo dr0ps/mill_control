@@ -1,33 +1,40 @@
+button {
+    margin: 2px;
+}
 .PositionLabel {
     font-family: monospace;
     font-size: 20pt;
     border: 5px inset gray;
     background-color: lightgreen;
 }
+.RefAllHomeButton {
+}
 .ZeroButton {
-    border: 5px ridge deeppink;
-    border-radius: 5px;
-    background-color: gray;
+    margin: 5px;
 }
 .CycleStartButton {
-    border: 5px ridge green;
-    border-radius: 5px;
     background-color: lightgreen;
 }
+.CycleStartButton:hover {
+    background-color: green;
+}
 .FeedHoldButton {
-    border: 5px ridge yellow;
-    border-radius: 5px;
-    background-color: #FFFF80;
+    background-color: lightcoral;
+}
+.FeedHoldButton:hover {
+    background-color: coral;
 }
 .ResetButton {
-    border: 5px ridge darkred;
-    border-radius: 5px;
-    background-color: #FF8080;
+    background-color: red;
+}
+.ResetButton:hover {
+    background-color: darkred;
 }
 .SpindleStopButton {
-    border: 5px ridge darkred;
-    border-radius: 5px;
     background-color: red;
+}
+.SpindleStopButton:hover {
+    background-color: darkred;
 }
 .StatusRow {
     font-family: monospace;
