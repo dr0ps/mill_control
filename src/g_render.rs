@@ -4,7 +4,7 @@ use glium::backend::{Context, Facade};
 use glium::index::IndicesSource;
 use glium::index::PrimitiveType::{LineStrip, TrianglesList};
 use glium::{Blend, BlendingFunction, DrawParameters, Program, Surface, uniform, VertexBuffer};
-use gtk::GLArea;
+use gtk4::GLArea;
 use crate::gl_facade::GLFacade;
 use crate::gl_area_backend::GLAreaBackend;
 use crate::stylus::create_stylus;
