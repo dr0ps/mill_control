@@ -37,6 +37,7 @@ mod vertex;
 mod gl_area_backend;
 mod gl_facade;
 mod g_render;
+mod stylus;
 
 enum Message {
     UpdatePosition(tinyg::Status),
@@ -179,6 +180,7 @@ pub fn main() {
 
     let status_label : gtk::Label = builder.object("status").unwrap();
 
+    let gl_area_event_box: gtk::EventBox = builder.object("gl_area_event_box").unwrap();
     let gl_area: gtk::GLArea = builder.object("gl_area").unwrap();
     gl_area.add_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK | EventMask::POINTER_MOTION_MASK | EventMask::SCROLL_MASK | EventMask::SMOOTH_SCROLL_MASK);
     gl_area.connect_motion_notify_event(|_gl_area, event_motion| {
@@ -189,6 +191,14 @@ pub fn main() {
     gl_area.connect_scroll_event(|_gl_area, event_scroll| {
         let (_x, y) = event_scroll.scroll_deltas().unwrap();
         G_RENDER.lock().expect("Unable to lock G_RENDER").set_zoom(y as f32 / 10.0);
+        Inhibit(true)
+    });
+    gl_area_event_box.connect_enter_notify_event(|_gl_area, _event_crossing| {
+        G_RENDER.lock().expect("Unable to lock G_RENDER").disable_auto_reset_rotation();
+        Inhibit(true)
+    });
+    gl_area_event_box.connect_leave_notify_event(|_gl_area, _event_crossing| {
+        G_RENDER.lock().expect("Unable to lock G_RENDER").enable_auto_reset_rotation();
         Inhibit(true)
     });
 
@@ -475,15 +485,15 @@ pub fn main() {
 
     gl_loader::init_gl();
 
-    let (facade, program) = GRender::initialize(&gl_area);
+    let (facade, program) = G_RENDER.lock().expect("Unable to lock G_RENDER").initialize(&gl_area);
 
     gl_area.connect_render(move |_glarea, _glcontext| {
-        G_RENDER.lock().expect("").draw(&facade, &program);
+        G_RENDER.lock().expect("Unable to lock G_RENDER").draw(&facade, &program);
         Inhibit(true)
     });
 
     gl_area.connect_resize(move |_gl_area, width,height| {
-        G_RENDER.lock().expect("").resize(width, height);
+        G_RENDER.lock().expect("Unable to lock G_RENDER").resize(width, height);
     });
 
     const FPS: u64 = 60;
@@ -514,6 +524,7 @@ pub fn main() {
             }
             if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
             {
+                G_RENDER.lock().expect("Unable to lock G_RENDER").set_position(status.posx, status.posy, status.posz);
                 let _ = sender.send(Message::UpdatePosition(status));
             }
             old_status = status;

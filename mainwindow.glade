@@ -370,11 +370,17 @@ A</property>
               </packing>
             </child>
             <child>
-              <object class="GtkGLArea" id="gl_area">
+              <object class="GtkEventBox" id="gl_area_event_box">
                 <property name="visible">True</property>
-                <property name="app-paintable">True</property>
                 <property name="can-focus">False</property>
-                <signal name="realize" handler="gl_init" swapped="no"/>
+                <child>
+                  <object class="GtkGLArea" id="gl_area">
+                    <property name="visible">True</property>
+                    <property name="app-paintable">True</property>
+                    <property name="can-focus">False</property>
+                    <signal name="realize" handler="gl_init" swapped="no"/>
+                  </object>
+                </child>
               </object>
               <packing>
                 <property name="expand">True</property>

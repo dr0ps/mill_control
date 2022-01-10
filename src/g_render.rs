@@ -2,11 +2,12 @@ use std::f32::consts::PI;
 use gcode::{Parser, Mnemonic, Nop, buffers::DefaultBuffers, GCode};
 use glium::backend::{Context, Facade};
 use glium::index::IndicesSource;
-use glium::index::PrimitiveType::LineStrip;
+use glium::index::PrimitiveType::{LineStrip, TrianglesList};
 use glium::{Blend, BlendingFunction, DrawParameters, Program, Surface, uniform, VertexBuffer};
 use gtk::GLArea;
 use crate::gl_facade::GLFacade;
 use crate::gl_area_backend::GLAreaBackend;
+use crate::stylus::create_stylus;
 use crate::vertex::Vertex;
 
 pub struct GRender {
@@ -23,6 +24,11 @@ pub struct GRender {
     angle_y: f32,
     zoom: f32,
     last_active_line: u32,
+    stylus: Vec<Vertex>,
+    pos_x: f32,
+    pos_y: f32,
+    pos_z: f32,
+    auto_reset_rotation: bool,
 }
 
 fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool, line: u32) -> Vertex {
@@ -190,10 +196,28 @@ fn test_dot_product_identity() {
 
 impl GRender {
     pub fn new() -> Self {
-        Self { line:Vec::new(), min_x:0.0, max_x:0.0, min_y:0.0, max_y:0.0, min_z:0.0, max_z:0.0, width: 100, height: 100, angle_x: 0.0, angle_y: 0.0, zoom: 1.0, last_active_line: 0}
+        Self { line:Vec::new(),
+            min_x:0.0,
+            max_x:0.0,
+            min_y:0.0,
+            max_y:0.0,
+            min_z:0.0,
+            max_z:0.0,
+            width: 100,
+            height: 100,
+            angle_x: 0.0,
+            angle_y: 0.0,
+            zoom: 1.0,
+            last_active_line: 0,
+            stylus: Vec::new(),
+            pos_x: 0.0,
+            pos_y: 0.0,
+            pos_z: 0.0,
+            auto_reset_rotation: true,
+        }
     }
 
-    pub fn initialize(gl_area : &GLArea) -> (GLFacade, Program){
+    pub fn initialize(&mut self, gl_area : &GLArea) -> (GLFacade, Program){
         let context = unsafe {
             Context::new(
                 GLAreaBackend::new(gl_area.clone()),
@@ -235,6 +259,8 @@ impl GRender {
         }
     "#;
 
+        create_stylus(&mut self.stylus);
+
         let program = Program::from_source(&gl_context, vertex_shader_src, fragment_shader_src, None).unwrap();
         (gl_context, program)
     }
@@ -242,6 +268,12 @@ impl GRender {
     pub fn update(&mut self, contents : &str) -> Result<(), String>{
         self.line.clear();
         self.last_active_line = 0;
+        self.min_x = 0.0;
+        self.max_x = 0.0;
+        self.min_y = 0.0;
+        self.max_y = 0.0;
+        self.min_z = 0.0;
+        self.max_z = 0.0;
         let mut absolute = true;
         let mut loc_x : f32 = 0.0;
         let mut loc_y : f32 = 0.0;
@@ -303,14 +335,18 @@ impl GRender {
             [1.0, 0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [-(self.max_x+self.min_x)/2.0, -(self.max_y+self.min_y)/2.0, -(self.max_z+self.min_z)/2.0, 1.0f32]
+            [-(self.pos_x.max(self.max_x)+self.pos_x.min(self.min_x))/2.0,
+                -(self.pos_y.max(self.max_y)+self.pos_y.min(self.min_y))/2.0,
+                -(self.pos_z.max(self.max_z)+self.pos_z.min(self.min_z))/2.0, 1.0f32]
         ];
 
-        let initial_scale_factor = 1.0 / (self.max_x-self.min_x).max(self.max_y-self.min_y).max(self.max_z-self.min_z);
+        let initial_scale_factor = 1.0 / (self.pos_x.max(self.max_x)-self.pos_x.min(self.min_x))
+            .max(self.pos_y.max(self.max_y)-self.pos_y.min(self.min_y))
+            .max(self.pos_z.max(self.max_z)-self.pos_z.min(self.min_z));
 
         let initial_scale = [
             [initial_scale_factor, 0.0, 0.0, 0.0],
-            [0.0, initial_scale_factor, 0.0, 0.0],
+            [0.0, -initial_scale_factor, 0.0, 0.0],
             [0.0, 0.0, initial_scale_factor, 0.0],
             [0.0, 0.0, 0.0, 1.0f32]
         ];
@@ -322,18 +358,25 @@ impl GRender {
             [0.0, 0.0, 0.0, 1.0f32]
         ];
 
+        if self.auto_reset_rotation {
+            self.angle_y = self.angle_y * 0.95;
+            self.angle_x = self.angle_x * 0.95;
+        }
+
         let rotation = dot_product(
-         [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, self.angle_y.cos(), self.angle_y.sin(), 0.0],
-            [0.0, -self.angle_y.sin(), self.angle_y.cos(), 0.0],
-            [0.0, 0.0, 0.0, 1.0f32]
-        ], [
+        [
             [self.angle_x.cos(), 0.0, -self.angle_x.sin(), 0.0],
             [0.0, 1.0, 0.1, 0.0],
             [self.angle_x.sin(), 0.0, self.angle_x.cos(), 0.0],
             [0.0, 0.0, 0.0, 1.0f32]
-        ]);
+        ],
+        [
+             [1.0, 0.0, 0.0, 0.0],
+             [0.0, self.angle_y.cos(), self.angle_y.sin(), 0.0],
+             [0.0, -self.angle_y.sin(), self.angle_y.cos(), 0.0],
+             [0.0, 0.0, 0.0, 1.0f32]
+         ]
+        );
 
         let translation = [
             [1.0, 0.0, 0.0, 0.0],
@@ -379,6 +422,22 @@ impl GRender {
 
         frame.draw((&vertex_buffer, &vertex_buffer), IndicesSource::NoIndices {primitives : LineStrip}, program, &uniform! { matrix: matrix, rotation: rotation, translation: translation, perspective: perspective },
                    &draw_parameters).unwrap();
+
+        let stylus_translation = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-(self.pos_x.max(self.max_x)+self.pos_x.min(self.min_x))/2.0 + self.pos_x,
+                -(self.pos_y.max(self.max_y)+self.pos_y.min(self.min_y))/2.0 + self.pos_y,
+                -(self.pos_z.max(self.max_z)+self.pos_z.min(self.min_z))/2.0 + self.pos_z + 8.0, 1.0f32]
+        ];
+
+        let matrix = dot_product(dot_product(dot_product(stylus_translation, initial_scale), initial_rotation), zoom);
+
+        let stylus_buffer = VertexBuffer::persistent(facade, self.stylus.as_slice()).unwrap();
+        frame.draw((&stylus_buffer, &stylus_buffer), IndicesSource::NoIndices {primitives : TrianglesList}, program, &uniform! { matrix: matrix, rotation: rotation, translation: translation, perspective: perspective },
+                   &draw_parameters).unwrap();
+
         frame.finish().unwrap();
         vertex_buffer.invalidate();
     }
@@ -414,5 +473,21 @@ impl GRender {
                 break;
             }
         }
+    }
+
+    pub fn set_position(&mut self, pos_x: f32, pos_y: f32, pos_z: f32) {
+        self.pos_x = pos_x;
+        self.pos_y = pos_y;
+        self.pos_z = pos_z;
+    }
+
+    pub fn enable_auto_reset_rotation(&mut self)
+    {
+        self.auto_reset_rotation = true;
+    }
+
+    pub fn disable_auto_reset_rotation(&mut self)
+    {
+        self.auto_reset_rotation = false;
     }
 }
