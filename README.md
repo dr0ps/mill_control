@@ -1,15 +1,17 @@
 # mill_control - a simple tool to control a TinyG cnc controller
 
 This creates a single binary that is able to directly control a TinyG board.
-* You can manually jog or send a gcode file. Loading a Gcode file will run it immediately.
-* Feed hold works, cycle start continues the program.
+* You can manually jog or run a gcode file.
+* Feed hold works, cycle start continues the program. Reset does reset the TinyG.
+* There is a 3D display of the gcode which is continuously updated while the program runs.
 * There is support for a WHB04B remote.
+* The spindle motor can be controlled while jogging.
 
 ![screenshot](mill_control.png)
 
 ## Getting Started
 
-mill_control is written in Rust.
+mill_control is written in Rust. Binary releases are currently not available. Building on Windows does currently not work.
 
 ### Prerequisites
 
