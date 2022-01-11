@@ -56,35 +56,49 @@ fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut
     Vertex{position: [*loc_x, *loc_y, *loc_z], base_color: match code.major_number() { 1 => [0.0, 1.0, 0.0], _ => [1.0, 1.0, 0.0]}, line }
 }
 
+fn add(gcode_pos: Option<f32>, current: & f32, absolute: bool) -> f32 {
+    return if gcode_pos.is_some() {
+        if absolute {
+            gcode_pos.unwrap()
+        } else {
+            gcode_pos.unwrap() + *current
+        }
+    } else {
+        *current
+    }
+}
+
+#[test]
+fn test_add_none_absolute() {
+    let current = 10.0;
+    assert_eq!(10.0, add(None, &current, true));
+}
+
+#[test]
+fn test_add_none_relative() {
+    let current = 10.0;
+    assert_eq!(10.0, add(None, &current, false));
+}
+
+#[test]
+fn test_add_some_absolute() {
+    let current = 10.0;
+    assert_eq!(1.0, add(Some(1.0), &current, true));
+}
+
+#[test]
+fn test_add_some_relative() {
+    let current = 10.0;
+    assert_eq!(11.0, add(Some(1.0), &current, false));
+}
+
 fn create_vertex_g3(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool, line: u32) -> Vec<Vertex> {
 
     let mut result = Vec::new();
 
-    let x;
-    let x_pos = code.value_for('x');
-    if x_pos.is_some() {
-        if absolute {
-            x = x_pos.unwrap()
-        } else {
-            x = x_pos.unwrap() + *loc_x
-        };
-    }
-    else {
-        x = *loc_x;
-    }
+    let x= add(code.value_for('x'), loc_x, absolute);
 
-    let y;
-    let y_pos = code.value_for('y');
-    if y_pos.is_some() {
-        if absolute {
-            y = y_pos.unwrap()
-        } else {
-            y= y_pos.unwrap() + *loc_y
-        };
-    }
-    else {
-        y = *loc_y;
-    }
+    let y= add(code.value_for('y'), loc_y, absolute);
 
     // TODO: handle i or j not being entered
     let center_x;
