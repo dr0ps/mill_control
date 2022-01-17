@@ -5,7 +5,7 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 use std::thread;
 use lazy_static::lazy_static;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::sync::mpsc::{self, Sender, TryRecvError};
 use std::rc::{Weak};
 use std::thread::JoinHandle;
@@ -20,6 +20,10 @@ lazy_static! {
             posy: 0.0,
             posz: 0.0,
             posa: 0.0,
+            mpox: 0.0,
+            mpoy: 0.0,
+            mpoz: 0.0,
+            mpoa: 0.0,
             feed: 0.0,
             vel: 0.0,
             unit: 0,
@@ -50,6 +54,10 @@ pub struct Status {
     #[serde(default)] pub posy: f32,
     #[serde(default)] pub posz: f32,
     #[serde(default)] pub posa: f32,
+    #[serde(default)] pub mpox: f32,
+    #[serde(default)] pub mpoy: f32,
+    #[serde(default)] pub mpoz: f32,
+    #[serde(default)] pub mpoa: f32,
     #[serde(default)] pub feed: f32,
     #[serde(default)] pub vel: f32,
     #[serde(default)] pub unit: u8,
@@ -73,6 +81,10 @@ pub struct StatusFields {
     posy: bool,
     posz: bool,
     posa: bool,
+    mpox: bool,
+    mpoy: bool,
+    mpoz: bool,
+    mpoa: bool,
     feed: bool,
     vel: bool,
     unit: bool,
@@ -627,7 +639,7 @@ impl Tinyg {
     }
 
     pub fn set_status_fields(&mut self) -> Result<StatusReport, String> {
-        let fields = StatusFields{line: true, coor: true, dist: true, feed: true, frmo: true, posa: true, posx: true, posy: true, posz: true, stat: true, unit: true, vel: true};
+        let fields = StatusFields{line: true, coor: true, dist: true, feed: true, frmo: true, posa: true, posx: true, posy: true, posz: true, stat: true, unit: true, vel: true, mpox: true, mpoy: true, mpoz: true, mpoa: true};
         let set_fields = SetStatusFields{sr: fields};
         let result = send(self.port.as_mut().expect(""), serde_json::to_string(&set_fields).unwrap().add("\r\n").as_str())?;
         let status_report: StatusReportResult = serde_json::from_str(result.as_str()).unwrap();
@@ -687,24 +699,30 @@ impl Tinyg {
         Ok(result)
     }
 
-    pub fn zero_x(&mut self) -> Result<String, String> {
-        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 x0\"}\r\n")?;
+    fn set_offset(&mut self, status_offset_fn : fn(status : &MutexGuard<Status>) -> f32, axis: char) -> Result<String, String>
+    {
+        let status = STATUS.lock().expect("Unable to lock status");
+        let coordinate_system = status.coor;
+        let machine_pos = status_offset_fn(&status);
+        drop(status);
+        let result = send(self.port.as_mut().expect(""), format!("{{\"gc\":\"g10 l2 p{} {}{}\"}}\r\n", coordinate_system, axis, machine_pos).as_str())?;
         Ok(result)
+    }
+
+    pub fn zero_x(&mut self) -> Result<String, String> {
+        self.set_offset(|status| {status.mpox}, 'x')
     }
 
     pub fn zero_y(&mut self) -> Result<String, String> {
-        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 y0\"}\r\n")?;
-        Ok(result)
+        self.set_offset(|status| {status.mpoy}, 'y')
     }
 
     pub fn zero_z(&mut self) -> Result<String, String> {
-        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 z0\"}\r\n")?;
-        Ok(result)
+        self.set_offset(|status| {status.mpoz}, 'z')
     }
 
     pub fn zero_a(&mut self) -> Result<String, String> {
-        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"g92 a0\"}\r\n")?;
-        Ok(result)
+        self.set_offset(|status| {status.mpoa}, 'a')
     }
 
     pub fn cycle_start(&mut self) {
@@ -737,6 +755,20 @@ impl Tinyg {
 
     pub fn spindle_stop(&mut self) -> Result<String, String> {
         let result = send(self.port.as_mut().expect(""), "{\"gc\":\"m5\"}\r\n")?;
+        Ok(result)
+    }
+
+    pub fn set_coordinate_sytem(&mut self, coordinate_system : i32) -> Result<String, String> {
+        let gcode = match coordinate_system {
+            1 => "G54",
+            2 => "G55",
+            3 => "G56",
+            4 => "G57",
+            5 => "G58",
+            6 => "G59",
+            _ => panic!("Unsupported coordinate system {}", coordinate_system)
+        };
+        let result = send(self.port.as_mut().expect(""), format!("{{\"gc\":\"{}\"}}\r\n", gcode).as_str())?;
         Ok(result)
     }
 }

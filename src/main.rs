@@ -27,7 +27,7 @@ use gdk::{EventMask};
 
 use lazy_static::lazy_static;
 
-use log::{error, info};
+use log::{error, info, warn};
 use simple_logger::SimpleLogger;
 use log::LevelFilter::Info;
 
@@ -42,6 +42,7 @@ mod stylus;
 enum Message {
     UpdatePosition(tinyg::Status),
     UpdateLine(tinyg::Status),
+    UpdateCoordinateSystem(tinyg::Status),
     UpdateQueueFree(tinyg::QueueStatus)
 }
 
@@ -510,6 +511,7 @@ pub fn main() {
     drop(tiny_g);
     let _ = sender.send(Message::UpdatePosition(old_status));
     let _ = sender.send( Message::UpdateQueueFree(old_queue_status));
+    let _ = sender.send(Message::UpdateCoordinateSystem(old_status));
 
     idle_add_local(move || {
         let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
@@ -517,15 +519,16 @@ pub fn main() {
         let queue_status = tiny_g.get_queue_status();
         drop(tiny_g);
         if old_status != status {
-            if old_status.line != status.line
-            {
+            if old_status.line != status.line {
                 let _ = sender.send(Message::UpdateLine(status));
                 G_RENDER.lock().expect("Unable to lock G_RENDER").update_line(status.line);
             }
-            if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa
-            {
+            if old_status.posx != status.posx || old_status.posy != status.posy || old_status.posz != status.posz || old_status.posa != status.posa {
                 G_RENDER.lock().expect("Unable to lock G_RENDER").set_position(status.posx, status.posy, status.posz);
                 let _ = sender.send(Message::UpdatePosition(status));
+            }
+            if old_status.coor != status.coor {
+                let _ = sender.send(Message::UpdateCoordinateSystem(status));
             }
             old_status = status;
         }
@@ -546,6 +549,73 @@ pub fn main() {
 
     let tag = gtk::TextTagBuilder::new().background("yellow").name("yellow_bg").build();
     text_view_buffer.tag_table().unwrap().add(&tag);
+
+    let g54 : gtk::RadioButton = builder.object("g54").unwrap();
+    g54.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(1) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G54: {}", msg);
+            }
+        }
+    });
+    let g55 : gtk::RadioButton = builder.object("g55").unwrap();
+    g55.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(2) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G55: {}", msg);
+            }
+        }
+    });
+    let g56 : gtk::RadioButton = builder.object("g56").unwrap();
+    g56.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(3) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G56: {}", msg);
+            }
+        }
+    });
+    let g57 : gtk::RadioButton = builder.object("g57").unwrap();
+    g57.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(4) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G57: {}", msg);
+            }
+        }
+    });
+    let g58 : gtk::RadioButton = builder.object("g58").unwrap();
+    g58.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(5) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G58: {}", msg);
+            }
+        }
+    });
+    let g59 : gtk::RadioButton = builder.object("g59").unwrap();
+    g59.connect_clicked(|_| {
+        match TINY_G.lock().expect("Unable to lock Tiny-G").set_coordinate_sytem(6) {
+            Ok(_) => {
+
+            },
+            Err(msg) => {
+                error!("G59: {}", msg);
+            }
+        }
+    });
 
     receiver.attach(None, move |msg| {
         match msg {
@@ -572,6 +642,20 @@ pub fn main() {
             },
             Message::UpdateQueueFree(queue_status) => {
                 status_label_clone.set_text(format!("Free planning queue entries: {:>2}, Lines read and ready to be consumed: {:>2}, Input buffer length: {:>4}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length, queue_status.input_buffer_length).as_str());
+            },
+            Message::UpdateCoordinateSystem(status) => {
+                match status.coor {
+                    1 => g54.activate(),
+                    2 => g55.activate(),
+                    3 => g56.activate(),
+                    4 => g57.activate(),
+                    5 => g58.activate(),
+                    6 => g59.activate(),
+                    _ => {
+                        warn!("Unsupported coordinate system {}", status.coor);
+                        true
+                    }
+                };
             }
         }
         // Returning false here would close the receiver
