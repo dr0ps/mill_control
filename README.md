@@ -15,7 +15,12 @@ mill_control is written in Rust. Binary releases are currently not available. Bu
 
 ### Prerequisites
 
-You need a Rust/Cargo installation. See https://rustup.rs/. After checking out this repository you can simply run
+You need a Rust/Cargo installation. See https://rustup.rs/.
+You will need some additional packages. On debian/ubuntu you could run
+```
+sudo apt-get install -y libudev-dev libusb-1.0-0-dev libhidapi-libusb0 libpango1.0-dev libgtk-4-dev
+```
+After checking out this repository you can simply run
 
 ```
 cargo run
