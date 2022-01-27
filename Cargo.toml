@@ -26,3 +26,11 @@ gcode = { git = "https://github.com/dr0ps/gcode-rs" }
 
 [dependencies.gio]
 version = "0.14.8"
+
+# Pi 0/1
+[target.arm-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+
+# Pi 2/3/4
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-none-linux-gnueabihf-gcc"
