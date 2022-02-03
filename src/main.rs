@@ -43,7 +43,9 @@ enum Message {
     UpdatePosition(tinyg::Status),
     UpdateLine(tinyg::Status),
     UpdateCoordinateSystem(tinyg::Status),
-    UpdateQueueFree(tinyg::QueueStatus)
+    UpdateQueueFree(tinyg::QueueStatus),
+    ProgrammStarted(),
+    ProgrammStopped()
 }
 
 lazy_static! {
@@ -225,7 +227,12 @@ pub fn main() {
         }
     }));
 
-    builder.object::<gtk::Button>("start_button").unwrap().connect_clicked(clone!(@weak text_view => move |_button| {
+    let jog_box : gtk::Box = builder.object("box_jog").unwrap();
+    let spindle_box : gtk::Box = builder.object("box_spindle").unwrap();
+    let position_box : gtk::Box = builder.object("box_position").unwrap();
+
+    let start_button : gtk::Button = builder.object::<gtk::Button>("start_button").unwrap();
+    start_button.connect_clicked(clone!(@weak text_view => move |_button| {
         let buffer = text_view
             .buffer()
             .expect("Couldn't get buffer");
@@ -530,6 +537,16 @@ pub fn main() {
             if old_status.coor != status.coor {
                 let _ = sender.send(Message::UpdateCoordinateSystem(status));
             }
+            if old_status.stat != status.stat {
+                match status.stat {
+                    1 | 3 | 4 => {
+                        let _ = sender.send(Message::ProgrammStopped());
+                    }
+                    _ => {
+                        let _ = sender.send(Message::ProgrammStarted());
+                    }
+                }
+            }
             old_status = status;
         }
         if old_queue_status != queue_status {
@@ -656,6 +673,20 @@ pub fn main() {
                         true
                     }
                 };
+            },
+            Message::ProgrammStarted() => {
+                file_choose_button.set_sensitive(false);
+                start_button.set_sensitive(false);
+                jog_box.set_sensitive(false);
+                spindle_box.set_sensitive(false);
+                position_box.set_sensitive(false);
+            }
+            Message::ProgrammStopped() => {
+                file_choose_button.set_sensitive(true);
+                start_button.set_sensitive(true);
+                jog_box.set_sensitive(true);
+                spindle_box.set_sensitive(true);
+                position_box.set_sensitive(true);
             }
         }
         // Returning false here would close the receiver

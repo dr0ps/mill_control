@@ -103,7 +103,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="box_position">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="orientation">vertical</property>
@@ -656,7 +656,7 @@ A</property>
               </packing>
             </child>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="box_jog">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="margin-left">10</property>
@@ -1061,7 +1061,7 @@ A</property>
               </packing>
             </child>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="box_spindle">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="margin-left">10</property>
