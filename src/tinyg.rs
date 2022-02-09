@@ -429,22 +429,15 @@ impl Tinyg {
         for p in ports {
             match p.port_type {
                 SerialPortType::UsbPort(info) => {
-                    match info.clone().manufacturer.as_deref() {
-                        Some("Future Technology Devices International, Ltd") => {
+                    match (info.vid, info.pid) {
+                        (0x0403, 0x6015) => {
                             tinyg_ports.push(p.port_name);
                         }
-                        Some(_str) => {
-                        }
-                        None => {
-
+                        _ => {
                         }
                     }
                 }
-                SerialPortType::BluetoothPort => {
-                }
-                SerialPortType::PciPort => {
-                }
-                SerialPortType::Unknown => {
+                _  => {
                 }
             }
         }
