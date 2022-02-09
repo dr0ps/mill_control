@@ -244,7 +244,7 @@ impl GRender {
         let gl_context = GLFacade::new(context);
 
         let vertex_shader_src = r#"
-        #version 150
+        #version 300 es
         in vec3 position;
         in vec3 base_color;
         out vec3 b_color;
@@ -261,14 +261,14 @@ impl GRender {
     "#;
 
         let fragment_shader_src = r#"
-        #version 150
-        in float depth;
-        in vec3 b_color;
-        out vec4 color;
+        #version 300 es
+        in mediump float depth;
+        in mediump vec3 b_color;
+        out mediump vec4 color;
         void main() {
-            float brightness = 2.5-depth;
-            vec3 regular_color = b_color;
-            vec3 dark_color = b_color * 0.1;
+            mediump float brightness = 2.5-depth;
+            mediump vec3 regular_color = b_color;
+            mediump vec3 dark_color = b_color * 0.1;
             color = vec4(mix(dark_color, regular_color, brightness), 1.0);
         }
     "#;
