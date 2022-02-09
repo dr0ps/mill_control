@@ -3,6 +3,11 @@ name = "mill_control"
 version = "0.1.0"
 authors = ["dr0ps <dr0ps@users.noreply.github.com>"]
 edition = "2021"
+readme = "README.md"
+license = "GPL-2.0-only"
+description = "A GUI for using a Tinyg board to control a CNC machine"
+homepage = "https://github.com/dr0ps/mill_control"
+keywords = ["CNC", "GTK", "GCode"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
