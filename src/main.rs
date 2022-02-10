@@ -24,6 +24,7 @@ use std::str::FromStr;
 use std::sync::{Mutex};
 use std::time::Duration;
 use gdk::{EventMask};
+use gdk::pango::Style;
 
 use lazy_static::lazy_static;
 
@@ -181,6 +182,18 @@ pub fn main() {
     let main_window: gtk::Window = builder.object("main_window").unwrap();
     let text_view: gtk::TextView = builder.object("gcode_view").unwrap();
 
+    let current_line_tag = gtk::TextTagBuilder::new().background("yellow").name("yellow_bg").build();
+    let disabled_line_tag = gtk::TextTagBuilder::new().foreground("grey").style(Style::Italic).name("grey_fg").build();
+
+    let start_mark;
+    {
+        let text_view_buffer = text_view.buffer().expect("Couldn't get buffer");
+        text_view_buffer.tag_table().unwrap().add(&current_line_tag);
+        text_view_buffer.tag_table().unwrap().add(&disabled_line_tag);
+        start_mark = text_view_buffer.create_mark(Some("Start"), &text_view_buffer.start_iter(), true).expect("Unable to create mark.");
+    }
+    start_mark.set_visible(true);
+
     let status_label : gtk::Label = builder.object("status").unwrap();
 
     let gl_area_event_box: gtk::EventBox = builder.object("gl_area_event_box").unwrap();
@@ -206,7 +219,7 @@ pub fn main() {
     });
 
     let file_choose_button : gtk::FileChooserButton = builder.object("file_choose_button").unwrap();
-    file_choose_button.connect_file_set(clone!(@weak text_view => move |file_choose_button| {
+    file_choose_button.connect_file_set(clone!(@weak text_view, @weak start_mark => move |file_choose_button| {
         let filename = file_choose_button.filename().expect("Couldn't get filename");
         let file = File::open(&filename).expect("Couldn't open file");
 
@@ -214,10 +227,13 @@ pub fn main() {
         let mut contents = String::new();
         let _ = reader.read_to_string(&mut contents);
 
-        text_view
+        let text_view_buffer = text_view
             .buffer()
-            .expect("Couldn't get buffer")
-            .set_text(&contents);
+            .expect("Couldn't get buffer");
+
+        text_view_buffer.set_text(&contents);
+
+        text_view_buffer.move_mark(&start_mark, &text_view_buffer.start_iter());
 
         match G_RENDER.lock().expect("").update(&contents) {
             Err(error) => {
@@ -232,17 +248,17 @@ pub fn main() {
     let position_box : gtk::Box = builder.object("box_position").unwrap();
 
     let start_button : gtk::Button = builder.object::<gtk::Button>("start_button").unwrap();
-    start_button.connect_clicked(clone!(@weak text_view => move |_button| {
+    start_button.connect_clicked(clone!(@weak text_view, @weak start_mark => move |_button| {
         let buffer = text_view
             .buffer()
             .expect("Couldn't get buffer");
 
-        let (start, end) = buffer.bounds();
+        let (start, end) = (buffer.iter_at_mark(&start_mark), buffer.end_iter());
 
         let contents = buffer.text(&start, &end, true).expect("Couldn't get contents.");
 
         let mut gcode_lines : Vec<String> = Vec::new();
-        let mut line_number = 0;
+        let mut line_number = buffer.iter_at_mark(&start_mark).line();
         contents.lines().for_each(
             |x| {
                 let mut s = String::new();
@@ -260,6 +276,26 @@ pub fn main() {
 
             tinyg.send_gcode(Box::new(gcode_lines));
         });
+    }));
+
+    let start_line_button : gtk::Button = builder.object::<gtk::Button>("start_line_button").unwrap();
+    start_line_button.connect_clicked(clone!(@weak text_view, @weak start_mark => move |_button| {
+        let (strong, _weak) = text_view
+            .cursor_locations(None);
+
+        let buffer = text_view
+            .buffer()
+            .expect("Couldn't get buffer");
+
+        let line = text_view.iter_at_location(strong.x, strong.y).unwrap().line();
+
+        buffer.remove_tag(&disabled_line_tag, &buffer.start_iter(), &buffer.end_iter());
+        let iter = buffer.start_iter();
+        buffer.apply_tag(&disabled_line_tag, &iter, &buffer.iter_at_line(line));
+
+        buffer.move_mark(&start_mark, &buffer.iter_at_line(line));
+
+         G_RENDER.lock().expect("").set_start_line(line as u32);
     }));
 
     builder.object::<gtk::Button>("refallhome_button").unwrap().connect_clicked(|_button| {
@@ -514,6 +550,7 @@ pub fn main() {
 
     let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
     let mut old_status = tiny_g.get_latest_status().unwrap();
+    old_status.stat = 1;
     let mut old_queue_status = tiny_g.get_queue_status();
     drop(tiny_g);
     let _ = sender.send(Message::UpdatePosition(old_status));
@@ -555,17 +592,6 @@ pub fn main() {
         }
         Continue(true)
     });
-
-    let pos_x_clone = pos_x.clone();
-    let pos_y_clone = pos_y.clone();
-    let pos_z_clone = pos_z.clone();
-    let pos_a_clone = pos_a.clone();
-    let text_view_clone = text_view.clone();
-    let status_label_clone = status_label.clone();
-    let text_view_buffer = text_view_clone.buffer().unwrap();
-
-    let tag = gtk::TextTagBuilder::new().background("yellow").name("yellow_bg").build();
-    text_view_buffer.tag_table().unwrap().add(&tag);
 
     let g54 : gtk::RadioButton = builder.object("g54").unwrap();
     g54.connect_clicked(|_| {
@@ -637,28 +663,31 @@ pub fn main() {
     receiver.attach(None, move |msg| {
         match msg {
             Message::UpdatePosition(status) => {
-                pos_x_clone.set_text(format!("{:.4}", status.posx).as_str());
-                pos_y_clone.set_text(format!("{:.4}", status.posy).as_str());
-                pos_z_clone.set_text(format!("{:.4}", status.posz).as_str());
-                pos_a_clone.set_text(format!("{:.4}", status.posa).as_str());
+                pos_x.set_text(format!("{:.4}", status.posx).as_str());
+                pos_y.set_text(format!("{:.4}", status.posy).as_str());
+                pos_z.set_text(format!("{:.4}", status.posz).as_str());
+                pos_a.set_text(format!("{:.4}", status.posa).as_str());
             }
             Message::UpdateLine(status) => {
-                let iter = text_view_buffer.iter_at_line(status.line as i32 + 5);
-                match text_view_buffer.create_mark(None, &iter, false) {
+                let buffer = text_view
+                    .buffer()
+                    .expect("Couldn't get buffer");
+                let iter = buffer.iter_at_line(status.line as i32 + 5);
+                match buffer.create_mark(None, &iter, false) {
                     Some(mark) => {
-                        text_view_clone.scroll_mark_onscreen(&mark);
-                        text_view_buffer.delete_mark(&mark);
+                        text_view.scroll_mark_onscreen(&mark);
+                        buffer.delete_mark(&mark);
                     }
                     None => {
                     }
                 }
 
-                text_view_buffer.remove_tag(&tag, &text_view_buffer.start_iter(), &text_view_buffer.end_iter());
-                let iter = text_view_buffer.iter_at_line(status.line as i32);
-                text_view_buffer.apply_tag(&tag, &iter, &text_view_buffer.iter_at_line(status.line as i32 + 1));
+                buffer.remove_tag(&current_line_tag, &buffer.start_iter(), &buffer.end_iter());
+                let iter = buffer.iter_at_line(status.line as i32);
+                buffer.apply_tag(&current_line_tag, &iter, &buffer.iter_at_line(status.line as i32 + 1));
             },
             Message::UpdateQueueFree(queue_status) => {
-                status_label_clone.set_text(format!("Free planning queue entries: {:>2}, Lines read and ready to be consumed: {:>2}, Input buffer length: {:>4}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length, queue_status.input_buffer_length).as_str());
+                status_label.set_text(format!("Free planning queue entries: {:>2}, Lines read and ready to be consumed: {:>2}, Input buffer length: {:>4}", queue_status.tinyg_planning_buffer_free, queue_status.line_buffer_length, queue_status.input_buffer_length).as_str());
             },
             Message::UpdateCoordinateSystem(status) => {
                 match status.coor {
@@ -677,6 +706,7 @@ pub fn main() {
             Message::ProgrammStarted() => {
                 file_choose_button.set_sensitive(false);
                 start_button.set_sensitive(false);
+                start_line_button.set_sensitive(false);
                 jog_box.set_sensitive(false);
                 spindle_box.set_sensitive(false);
                 position_box.set_sensitive(false);
@@ -684,6 +714,7 @@ pub fn main() {
             Message::ProgrammStopped() => {
                 file_choose_button.set_sensitive(true);
                 start_button.set_sensitive(true);
+                start_line_button.set_sensitive(true);
                 jog_box.set_sensitive(true);
                 spindle_box.set_sensitive(true);
                 position_box.set_sensitive(true);

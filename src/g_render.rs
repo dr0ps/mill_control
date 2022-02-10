@@ -29,6 +29,7 @@ pub struct GRender {
     pos_y: f32,
     pos_z: f32,
     auto_reset_rotation: bool,
+    start_line: u32,
 }
 
 fn create_vertex_g1(code : &GCode, loc_x: &mut f32, loc_y: &mut f32, loc_z: &mut f32, absolute : bool, line: u32) -> Vertex {
@@ -228,6 +229,7 @@ impl GRender {
             pos_y: 0.0,
             pos_z: 0.0,
             auto_reset_rotation: true,
+            start_line: 0
         }
     }
 
@@ -341,7 +343,8 @@ impl GRender {
         let mut frame =
             glium::Frame::new(context.clone(), context.get_framebuffer_dimensions());
 
-        let vertex_buffer = VertexBuffer::persistent(facade, self.line.as_slice()).unwrap();
+        let start = self.line.partition_point(|probe| probe.line < self.start_line);
+        let vertex_buffer = VertexBuffer::persistent(facade, self.line.split_at(start).1).unwrap();
 
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
 
@@ -503,5 +506,9 @@ impl GRender {
     pub fn disable_auto_reset_rotation(&mut self)
     {
         self.auto_reset_rotation = false;
+    }
+
+    pub fn set_start_line(&mut self, line : u32) {
+        self.start_line = line;
     }
 }
