@@ -576,7 +576,7 @@ pub fn main() {
             }
             if old_status.stat != status.stat {
                 match status.stat {
-                    1 | 3 | 4 => {
+                    1 | 4 => {
                         let _ = sender.send(Message::ProgrammStopped());
                     }
                     _ => {
