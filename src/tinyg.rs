@@ -5,12 +5,20 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 use std::thread;
 use lazy_static::lazy_static;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::mpsc::{self, Sender, TryRecvError};
 use std::rc::{Weak};
 use std::thread::JoinHandle;
 use glib::clone::Downgrade;
 use log::{debug, info, error, warn};
+use crate::tinyg::GcodeSenderState::{Idle, Running, Stopping};
+
+#[derive(PartialEq)]
+enum GcodeSenderState {
+    Idle,
+    Running,
+    Stopping
+}
 
 lazy_static! {
     static ref LINES_READ : Mutex<Vec<String>> = Mutex::new(vec![]);
@@ -36,6 +44,8 @@ lazy_static! {
     static ref QUEUE_FREE : Mutex<u8> = Mutex::new(32);
 
     static ref INPUT_BUFFER_LENGTH : Mutex<usize> = Mutex::new(0);
+
+    static ref GCODE_SENDER_ACTIVE : Arc<Mutex<GcodeSenderState>> = Arc::new(Mutex::new(Idle));
 }
 
 pub struct Tinyg {
@@ -193,138 +203,6 @@ fn read_async() -> Result<String, String>
     return Ok(result);
 }
 
-fn send_gcode(port: &mut Box<dyn SerialPort>, code : Box<Vec<String>>)
-{
-    let mut myp = port.try_clone().unwrap();
-
-    let writer;
-    {
-        writer = thread::spawn(move || {
-            let mut code_iter = code.iter();
-            let mut last_queue_free;
-            {
-                let q = QUEUE_FREE.lock().expect("blah");
-                last_queue_free = q.clone();
-            }
-            loop {
-                let mut queue_free = QUEUE_FREE.lock().expect("blah");
-                if *queue_free != last_queue_free
-                {
-                    last_queue_free = *queue_free;
-                }
-                if *queue_free > 8
-                {
-                    let next_line = code_iter.next();
-
-                    let buffer_reduction;
-
-                    match next_line
-                    {
-                        Some(line) => {
-                            let parts:Vec<&str> = line.split(' ').collect();
-                            let mut pos = 0;
-                            if parts[0].starts_with('N') {
-                                pos = 1;
-                            }
-                            if parts[pos].starts_with("(") {
-                                buffer_reduction = 0;
-                            }
-                            else {
-                                buffer_reduction = 4;
-                            }
-                        }
-                        None => {
-                            buffer_reduction = 0;
-                        }
-                    }
-
-                    *queue_free -= buffer_reduction;
-                    drop(queue_free);
-
-                    match next_line
-                    {
-                        Some(line) => {
-                            let mut s = String::new();
-                            s.push_str("{\"gc\":\"");
-                            s.push_str(line);
-                            s.push_str("\"}\r\n");
-
-                           match send_async(&mut myp, &s) {
-                               Ok(size) => {
-                                   if size != s.len() {
-                                       error!("Expected to send {} but sent only {} bytes.", s.len(), size);
-                                       break;
-                                   }
-                               }
-                               Err(error) => {
-                                   error!("Error in send_gcode: {}",error);
-                                   break;
-                               }
-                           }
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                }
-                else {
-                    drop(queue_free);
-                    match send_async(&mut myp, "{\"qr\":n}\r\n") {
-                        Ok(size) => {
-                            if size != 10 {
-                                error!("Expected to send {} but sent only {} bytes.", 10, size);
-                                break;
-                            }
-                        }
-                        Err(error) => {
-                            error!("Error in send_gcode: {}",error);
-                            break;
-                        }
-                    }
-                    thread::sleep(Duration::from_nanos(10));
-                }
-                thread::sleep(Duration::from_nanos(10));
-            }
-            info!("Finished send_gcode sender.");
-        });
-    }
-
-    let (tx, rx) = mpsc::channel();
-
-    let reader = thread::spawn(move ||  {
-        loop {
-            match read_async()
-            {
-                Ok(_msg) => {
-                }
-                Err(msg) => {
-                    if msg.eq("Timeout in read_async.")
-                    {
-                        debug!("Timeout.");
-                    }
-                    else
-                    {
-                        error!("Error in send_gcode: {}", msg);
-                        break;
-                    }
-                }
-            }
-            thread::sleep(Duration::from_nanos(10));
-            match rx.try_recv() {
-                Ok(_) | Err(TryRecvError::Disconnected) => {
-                    info!("Finished send_gcode receiver.");
-                    break;
-                }
-                Err(TryRecvError::Empty) => {}
-            }
-        }
-    });
-
-    writer.join().unwrap();
-    let _ = tx.send(());
-    reader.join().unwrap();
-}
-
 fn send( port: &mut Box<dyn SerialPort>, message: &str) -> Result<String, String>
 {
     let json_only = message.starts_with('{');
@@ -420,7 +298,7 @@ impl Tinyg {
             input_buffer_length = *INPUT_BUFFER_LENGTH.lock().expect("blah!");
         }
 
-        return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length, input_buffer_length : input_buffer_length};
+        return QueueStatus {tinyg_planning_buffer_free: queue_free, line_buffer_length: line_length, input_buffer_length };
     }
 
     pub fn initialize(&mut self) -> Result<(JoinHandle<()>, Sender<()>), String> {
@@ -661,6 +539,11 @@ impl Tinyg {
         Ok(result)
     }
 
+    pub fn end_program(&mut self) -> Result<String, String> {
+        let result = send(self.port.as_mut().expect(""), "{\"gc\":\"m2\"}\r\n")?;
+        Ok(result)
+    }
+
     pub fn move_xyza(&mut self, x: Option<f32>, y: Option<f32>, z: Option<f32>, a: Option<f32>) -> Result<String, String> {
         let mut msg = String::from("{\"gc\":\"g91 g0");
         if x.is_some()
@@ -726,14 +609,189 @@ impl Tinyg {
         send_async(self.port.as_mut().expect(""), "!\r\n").expect("Failed to send feed hold.");
     }
 
+    pub fn flush_queue(&mut self) {
+        send_async(self.port.as_mut().expect(""), "%\r\n").expect("Failed to send queue flush.");
+    }
+
     pub fn reset(&mut self) {
         send_async(self.port.as_mut().expect(""), "\x18\r\n").expect("Failed to send feed hold.");
     }
 
-    pub fn send_gcode(&mut self, code : Box<Vec<String>>)
+    pub fn stop_gcode(&mut self) -> Result<(), String>
     {
-        send_gcode(self.port.as_mut().expect(""), code);
-        return;
+        let mut state = GCODE_SENDER_ACTIVE.lock().unwrap();
+        if *state != Running {
+            return Err("Gcode sending is not active.".to_string());
+        }
+        *state = Stopping;
+        drop(state);
+
+        let start = Instant::now();
+        loop {
+            let state = GCODE_SENDER_ACTIVE.lock().unwrap();
+            if *state == Idle {
+                break
+            }
+            drop(state);
+            if start.elapsed().as_millis() > 1000
+            {
+                return Err(String::from("Timeout in stop_gcode."));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn send_gcode(&mut self, code : Box<Vec<String>>) -> Result<i32, String>
+    {
+        let mut state = GCODE_SENDER_ACTIVE.lock().unwrap();
+        if *state != Idle {
+            Err("Gcode sending is already active.".to_string())
+        }
+        else {
+            *state = Running;
+
+            drop(state);
+
+            let mut myp = self.port.as_mut().expect("").try_clone().unwrap();
+
+            let mut line_count = 0;
+
+            let writer;
+            {
+                writer = thread::spawn(move || {
+                    let mut code_iter = code.iter();
+                    let mut last_queue_free;
+                    {
+                        let q = QUEUE_FREE.lock().expect("blah");
+                        last_queue_free = q.clone();
+                    }
+                    loop {
+                        let state = GCODE_SENDER_ACTIVE.lock().unwrap();
+                        if *state == Stopping {
+                            break;
+                        }
+                        drop(state);
+
+                        let mut queue_free = QUEUE_FREE.lock().expect("blah");
+                        if *queue_free != last_queue_free
+                        {
+                            last_queue_free = *queue_free;
+                        }
+                        if *queue_free > 8
+                        {
+                            let next_line = code_iter.next();
+
+                            let buffer_reduction;
+
+                            match next_line
+                            {
+                                Some(line) => {
+                                    let parts: Vec<&str> = line.split(' ').collect();
+                                    let mut pos = 0;
+                                    if parts[0].starts_with('N') {
+                                        pos = 1;
+                                    }
+                                    if parts[pos].starts_with("(") {
+                                        buffer_reduction = 0;
+                                    } else {
+                                        buffer_reduction = 4;
+                                    }
+                                }
+                                None => {
+                                    buffer_reduction = 0;
+                                }
+                            }
+
+                            *queue_free -= buffer_reduction;
+                            drop(queue_free);
+
+                            match next_line
+                            {
+                                Some(line) => {
+                                    let mut s = String::new();
+                                    s.push_str("{\"gc\":\"");
+                                    s.push_str(line);
+                                    s.push_str("\"}\r\n");
+
+                                    match send_async(&mut myp, &s) {
+                                        Ok(size) => {
+                                            if size != s.len() {
+                                                error!("Expected to send {} but sent only {} bytes.", s.len(), size);
+                                                break;
+                                            }
+                                        }
+                                        Err(error) => {
+                                            error!("Error in send_gcode: {}",error);
+                                            break;
+                                        }
+                                    }
+
+                                    line_count = line_count + 1;
+                                }
+                                None => {
+                                    break;
+                                }
+                            }
+                        } else {
+                            drop(queue_free);
+                            match send_async(&mut myp, "{\"qr\":n}\r\n") {
+                                Ok(size) => {
+                                    if size != 10 {
+                                        error!("Expected to send {} but sent only {} bytes.", 10, size);
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    error!("Error in send_gcode: {}",error);
+                                    break;
+                                }
+                            }
+                            thread::sleep(Duration::from_nanos(10));
+                        }
+                        thread::sleep(Duration::from_nanos(10));
+                    }
+                    info!("Finished send_gcode sender.");
+                });
+            }
+
+            let (tx, rx) = mpsc::channel();
+
+            let reader = thread::spawn(move || {
+                loop {
+                    match read_async()
+                    {
+                        Ok(_msg) => {}
+                        Err(msg) => {
+                            if msg.eq("Timeout in read_async.")
+                            {
+                                debug!("Timeout.");
+                            } else {
+                                error!("Error in send_gcode: {}", msg);
+                                break;
+                            }
+                        }
+                    }
+                    thread::sleep(Duration::from_nanos(10));
+                    match rx.try_recv() {
+                        Ok(_) | Err(TryRecvError::Disconnected) => {
+                            info!("Finished send_gcode receiver.");
+                            break;
+                        }
+                        Err(TryRecvError::Empty) => {}
+                    }
+                }
+            });
+
+            writer.join().unwrap();
+            let _ = tx.send(());
+            reader.join().unwrap();
+
+            let mut state = GCODE_SENDER_ACTIVE.lock().unwrap();
+            *state = Idle;
+
+            Ok(line_count)
+        }
     }
 
     pub fn spindle_cw(&mut self, rpm : i32) -> Result<String, String> {

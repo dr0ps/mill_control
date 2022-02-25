@@ -274,9 +274,31 @@ pub fn main() {
             let mut tinyg = ting_ref.clone();
             drop(ting_ref);
 
-            tinyg.send_gcode(Box::new(gcode_lines));
+            match tinyg.send_gcode(Box::new(gcode_lines)) {
+                Err(msg) => warn!("Error when sending gcode: {}", msg),
+                _ => {}
+            }
         });
     }));
+
+    let stop_button : gtk::Button = builder.object::<gtk::Button>("stop_button").unwrap();
+    stop_button.connect_clicked(move |_button| {
+        let mut tinyg_ref = TINY_G.lock().expect("Unable to lock Tiny-G");
+        tinyg_ref.feed_hold();
+        match tinyg_ref.stop_gcode() {
+            Err(msg) => warn!("Error when stopping gcode: {}", msg),
+            Ok(()) => {
+                info!("Stopped gcode sending.");
+                tinyg_ref.flush_queue();
+                tinyg_ref.cycle_start();
+                match tinyg_ref.end_program() {
+                    Err(msg) => warn!("Error when sending program end: {}", msg),
+                    _ => {}
+                }
+            }
+        }
+    });
+
 
     let start_line_button : gtk::Button = builder.object::<gtk::Button>("start_line_button").unwrap();
     start_line_button.connect_clicked(clone!(@weak text_view, @weak start_mark => move |_button| {
@@ -556,6 +578,7 @@ pub fn main() {
     let _ = sender.send(Message::UpdatePosition(old_status));
     let _ = sender.send( Message::UpdateQueueFree(old_queue_status));
     let _ = sender.send(Message::UpdateCoordinateSystem(old_status));
+    G_RENDER.lock().expect("Unable to lock G_RENDER").set_position(old_status.posx, old_status.posy, old_status.posz);
 
     idle_add_local(move || {
         let mut tiny_g = TINY_G.lock().expect("Unable to lock Tiny-G");
@@ -706,6 +729,7 @@ pub fn main() {
             Message::ProgrammStarted() => {
                 file_choose_button.set_sensitive(false);
                 start_button.set_sensitive(false);
+                stop_button.set_sensitive(true);
                 start_line_button.set_sensitive(false);
                 jog_box.set_sensitive(false);
                 spindle_box.set_sensitive(false);
@@ -714,6 +738,7 @@ pub fn main() {
             Message::ProgrammStopped() => {
                 file_choose_button.set_sensitive(true);
                 start_button.set_sensitive(true);
+                stop_button.set_sensitive(false);
                 start_line_button.set_sensitive(true);
                 jog_box.set_sensitive(true);
                 spindle_box.set_sensitive(true);
