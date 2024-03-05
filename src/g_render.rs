@@ -475,7 +475,7 @@ impl GRender {
 
     pub fn update_line(&mut self, line: u32) {
         for n in self.last_active_line as usize  .. self.line.len() {
-            let mut vertex = self.line.get_mut(n).unwrap();
+            let vertex = self.line.get_mut(n).unwrap();
             if vertex.line < line {
                 vertex.base_color = [0.0, 0.0, 0.0];
             }
